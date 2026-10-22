@@ -1,0 +1,15 @@
+name = "EpsilonEridaniRoadmap"
+defaultTargets = ["EpsilonEridaniRoadmap", "Completed"]
+
+[[require]]
+name = "EpsilonEridani"
+git = "https://github.com/cslib-community/EpsilonEridani"
+rev = "main"
+
+[[lean_lib]]
+name = "EpsilonEridaniRoadmap"
+globs = ["EpsilonEridaniRoadmap.*"]
+
+[[lean_lib]]
+name = "Completed"
+globs = ["Completed.+"]
