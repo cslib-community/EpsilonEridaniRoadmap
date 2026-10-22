@@ -1,0 +1,41 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout pinned shared tools
+        uses: actions/checkout@v4
+        with:
+          repository: TauCetiProject/TauCetiTools
+          ref: 2fa9b421d1846bc281151b748553b0ba95d4c788
+          path: .tauceti-tools
+          persist-credentials: false
+      - name: Load canonical project configuration
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.tauceti-tools
+          TAUCETI_CONF: https://raw.githubusercontent.com/cslib-community/EpsilonEridani/main/tauceti.toml
+        run: |
+          python3 -m tauceti_tools config environment --conf "$TAUCETI_CONF" --github-env "$GITHUB_ENV"
+          echo "PYTHONPATH=$PYTHONPATH" >> "$GITHUB_ENV"
+          echo "TAUCETI_CI_ARCHIVE_DIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+      - name: Set up Lean and restore Mathlib
+        uses: leanprover/lean-action@v1
+        with:
+          build: false
+          test: false
+          lint: false
+          use-mathlib-cache: true
+          use-github-cache: false
+      # Suggested.lean states goals and may use sorry. It does not share the
+      # content repository's axiom audit or warning-as-error policy.
+      - run: lake build
