@@ -10,14 +10,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
       - name: Checkout pinned shared tools
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: TauCetiProject/TauCetiTools
-          ref: 2fa9b421d1846bc281151b748553b0ba95d4c788
+          ref: 4b554aae4441ade012eaa869b2d0f4eae79176a5
           path: .tauceti-tools
           persist-credentials: false
       - name: Load canonical project configuration
@@ -29,7 +29,7 @@ jobs:
           echo "PYTHONPATH=$PYTHONPATH" >> "$GITHUB_ENV"
           echo "TAUCETI_CI_ARCHIVE_DIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
       - name: Set up Lean and restore Mathlib
-        uses: leanprover/lean-action@v1
+        uses: leanprover/lean-action@24581d74d674803a25a81b10b059c5c0cdd344c6
         with:
           build: false
           test: false
