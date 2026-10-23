@@ -1,0 +1,66 @@
+# Unmerged CSLib pull requests that EpsilonEridani roadmaps build on.
+# Policy and lifecycle: CSLIB_DEPENDENCIES.md. Check with: python3 scripts/check_cslib_dependencies.py
+#
+# Each entry pins the reviewed head commit this roadmap follows. EpsilonEridani carries a stand-in
+# for each CSLib module the PR adds, at `stand_in` (the CSLib path with `Cslib/` replaced by
+# `EpsilonEridani/Pending/Cslib/`), declared in namespace `EpsilonEridani.Pending.<CSLib namespace>`.
+
+[[pr]]
+number = 1068
+title = "feat(Crypto): add negligible bounds for security games"
+head = "c36c81340f50b34a2cf3b2162db80fc9bbfb3195"
+depends_on = []
+modules = ["Cslib/Crypto/Negligible.lean"]
+used_by = ["PrivateKeyEncryption: Layer 1", "OneWayFunctions: Layer 0"]
+
+[[pr]]
+number = 1062
+title = "feat(Probability): add real-valued PMF normalization and bind lemmas"
+head = "807f066de941490e437833e91f099927a984eb87"
+depends_on = [1068]
+modules = ["Cslib/Probability/PMF.lean"]
+used_by = ["PrivateKeyEncryption: Layer 1"]
+
+[[pr]]
+number = 1065
+title = "refactor(Probability): define statistical distance on arbitrary types"
+head = "4b26b1a0bc3067170911f04fa82690e3530f17a1"
+depends_on = [1062]
+modules = ["Cslib/Probability/StatisticalDistance.lean"]
+used_by = ["PrivateKeyEncryption: Layer 1"]
+
+[[pr]]
+number = 1069
+title = "feat(Crypto): add security games"
+head = "dd99d29a04228c74c2ae15f411e4bb2d981be30d"
+depends_on = [1065]
+modules = ["Cslib/Crypto/Game.lean"]
+used_by = ["PrivateKeyEncryption: Layers 1-5", "OneWayFunctions: Layers 0-4"]
+
+[[pr]]
+number = 1070
+title = "feat(Crypto): prove hybrid arguments with polynomially many hops"
+head = "dd4dacc93c4f333a4d93ce1dc5adeab8559ccdc2"
+depends_on = [1069]
+modules = ["Cslib/Crypto/Game/Hybrid.lean"]
+used_by = ["PrivateKeyEncryption: Layer 3", "OneWayFunctions: Layers 3-4"]
+
+[[pr]]
+number = 1071
+title = "refactor(Crypto/PRG): allow explicit seed and ideal distributions"
+head = "0c72491f399dee33429ff3a20caa3c57a254d3d5"
+depends_on = [1070]
+modules = [
+  "Cslib/Crypto/Primitives/PRG/Defs.lean",
+  "Cslib/Crypto/Primitives/PRG/Basic.lean",
+  "Cslib/Crypto/Primitives/PRG/Asymptotic.lean",
+]
+used_by = ["PrivateKeyEncryption: Layer 2", "OneWayFunctions: Layer 3"]
+
+[[pr]]
+number = 1072
+title = "feat(Crypto): relate security games to statistical distance"
+head = "8c1c75599f9f3054aaa662c67f8ff83df1624295"
+depends_on = [1071]
+modules = ["Cslib/Crypto/Game/Statistical.lean", "Cslib/Crypto/Primitives/PRG/Statistical.lean"]
+used_by = ["PrivateKeyEncryption: Layers 2-4"]
