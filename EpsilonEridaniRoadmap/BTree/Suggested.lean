@@ -27,15 +27,16 @@ The pinned choices illustrated here are:
 - Well-formedness is a predicate carried as a hypothesis, never bundled into the type. The
   minimum degree `t` is a term.
 - Each operation is defined once over an arbitrary monad, taking a comparator `le` and a
-  node-visit action `visit`, with no order instance in scope. It is instantiated at `TimeM ℕ`
-  (one tick per node visited, the primary model) and at `FreeM (LEQuery α)` (one query per
-  comparison, counted structurally and stated with `Cslib.Query.UpperBound`).
+  node-visit action `visit`, with no order instance in scope. The pure operation is its `Id`
+  instantiation; the correctness stage (Milestones 1 to 5) speaks only about that. The cost
+  stage instantiates it at `TimeM ℕ` (one tick per node visited, the primary model) and at
+  `FreeM (LEQuery α)` (one query per comparison, counted structurally and stated with
+  `Cslib.Query.UpperBound`), with transfer lemmas back to the pure operation.
 - Bounds are explicit inequalities in `height`, with `Nat.log` corollaries. No big-O.
 - The comparator-polymorphic sections fix the key and value types in `Type`, as CSLib's
   comparison queries do; the tree type itself is universe-polymorphic.
 
-Milestones 1 to 4 and 6 are prototyped in detail; Milestones 5, 7 and 8 give headline
-signatures only.
+Milestones 1 to 8 are prototyped in detail; Milestones 9 to 11 give headline signatures only.
 -/
 
 namespace EpsilonEridani
@@ -46,6 +47,8 @@ open Cslib.Algorithms.Lean.TimeM
 open Cslib.Query (LEQuery UpperBound LowerBound)
 
 universe u v w
+
+/-! # Stage 1: the classic B-tree, verified -/
 
 /-! ## Milestone 1: sorted association lists -/
 
@@ -275,7 +278,7 @@ end Structure
 /-! ## Milestone 3: search and order queries
 
 Operations are defined once over an arbitrary monad with a comparator `le` and a visit action,
-with no order instance in scope, then instrumented twice. -/
+with no order instance in scope. The pure operation is the `Id` instantiation. -/
 
 section QueriesPolymorphic
 
@@ -287,10 +290,6 @@ def slotM (le : α → α → m Bool) (k : α) : List (α × β × BTree α β) 
   | [] => pure 0
   | (k', _, _) :: rest => do
     if ← le k k' then pure 0 else return (← slotM le k rest) + 1
-
-/-- Within-node binary search over the same list: the target that meets the comparison lower
-bound, with at most `⌈log₂ (length + 1)⌉ + 1` comparisons. -/
-def slotBinM (le : α → α → m Bool) (k : α) (rest : List (α × β × BTree α β)) : m ℕ := sorry
 
 /-- Lookup. Walking along a node's triples is free; `visit` fires when the search commits to a
 child or stops at a key, so each node is visited once. Equality is two `le` queries. -/
@@ -309,10 +308,6 @@ def lookupM (le : α → α → m Bool) (visit : m Unit) (k : α) : BTree α β 
     else
       lookupM le visit k (.node c rest)
 termination_by tr => sizeOf tr
-
-/-- Lookup using `slotBinM` at each node instead of the linear walk. -/
-def lookupBinM (le : α → α → m Bool) (visit : m Unit) (k : α) : BTree α β → m (Option β) :=
-  sorry
 
 /-- Membership test. -/
 def containsM (le : α → α → m Bool) (visit : m Unit) (k : α) (tr : BTree α β) : m Bool := do
@@ -347,146 +342,398 @@ def rankM (le : α → α → m Bool) (visit : m Unit) (k : α) : BTree α β �
 
 end QueriesPolymorphic
 
-section QueriesInstances
+section QueriesPure
+
+variable {α β : Type} [LinearOrder α] {t : ℕ} {tr : BTree α β}
+
+/-- The decidable comparator of the order, in `Id`. -/
+abbrev leI (a b : α) : Id Bool := pure (decide (a ≤ b))
+
+/-- Within-node linear search, pure. -/
+def slot (k : α) (rest : List (α × β × BTree α β)) : ℕ := Id.run (slotM leI k rest)
+
+/-- Lookup, pure: the `Id` instantiation, as in CSLib's `idRun_mergeSortM`. -/
+def lookup (k : α) (tr : BTree α β) : Option β := Id.run (lookupM leI (pure ()) k tr)
+
+/-- Membership test, pure. -/
+def contains (k : α) (tr : BTree α β) : Bool := Id.run (containsM leI (pure ()) k tr)
+
+/-- Least entry, pure. -/
+def min? (tr : BTree α β) : Option (α × β) := Id.run (minM (pure ()) tr)
+
+/-- Greatest entry, pure. -/
+def max? (tr : BTree α β) : Option (α × β) := Id.run (maxM (pure ()) tr)
+
+/-- Predecessor, pure. -/
+def pred? (k : α) (tr : BTree α β) : Option (α × β) := Id.run (predM leI (pure ()) k tr)
+
+/-- Successor, pure. -/
+def succ? (k : α) (tr : BTree α β) : Option (α × β) := Id.run (succM leI (pure ()) k tr)
+
+/-- Range restriction, pure. -/
+def range (lo hi : α) (tr : BTree α β) : List (α × β) := Id.run (rangeM leI (pure ()) lo hi tr)
+
+/-- Rank, pure. -/
+def rank (k : α) (tr : BTree α β) : ℕ := Id.run (rankM leI (pure ()) k tr)
+
+/-! ### Model equations -/
+
+theorem slot_eq_length_takeWhile (k : α) (rest : List (α × β × BTree α β)) :
+    slot k rest = (rest.takeWhile fun e => decide (e.1 < k)).length := sorry
+
+theorem lookup_eq (h : IsWF t tr) (k : α) : lookup k tr = SortedAssoc.lookup k tr.toList := sorry
+
+theorem contains_eq (h : IsWF t tr) (k : α) :
+    contains k tr = (SortedAssoc.lookup k tr.toList).isSome := sorry
+
+theorem min?_eq (h : IsWF t tr) : min? tr = SortedAssoc.min? tr.toList := sorry
+
+theorem max?_eq (h : IsWF t tr) : max? tr = SortedAssoc.max? tr.toList := sorry
+
+theorem pred?_eq (h : IsWF t tr) (k : α) : pred? k tr = SortedAssoc.pred? k tr.toList := sorry
+
+theorem succ?_eq (h : IsWF t tr) (k : α) : succ? k tr = SortedAssoc.succ? k tr.toList := sorry
+
+theorem range_eq (h : IsWF t tr) (lo hi : α) :
+    range lo hi tr = SortedAssoc.range lo hi tr.toList := sorry
+
+theorem rank_eq (h : IsWF t tr) (k : α) : rank k tr = SortedAssoc.rank k tr.toList := sorry
+
+end QueriesPure
+
+/-! ## Milestone 4: insertion and erasure -/
+
+section UpdatesPolymorphic
+
+variable {α β : Type} {m : Type → Type w} [Monad m]
+
+/-- Insert-or-replace, visiting each node on the search path once. Top-down with pre-emptive
+splitting, or bottom-up with overflow, are both acceptable; `t` selects the occupancy bounds. -/
+def insertM (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (k : α) (v : β) :
+    BTree α β → m (BTree α β) := sorry
+
+/-- Erase. Interior keys are replaced by a predecessor or successor entry; erasure is not
+restricted to leaves. Siblings inspected for borrowing or merging are visited, so the
+node-visit bound of Milestone 6 is a constant multiple of the height. -/
+def eraseM (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (k : α) :
+    BTree α β → m (BTree α β) := sorry
+
+end UpdatesPolymorphic
+
+section UpdatesPure
+
+variable {α β : Type} [LinearOrder α] {t : ℕ} {tr : BTree α β}
+
+/-- Insertion, pure. -/
+def insert (t : ℕ) (k : α) (v : β) (tr : BTree α β) : BTree α β :=
+  Id.run (insertM t leI (pure ()) k v tr)
+
+/-- Erasure, pure. -/
+def erase (t : ℕ) (k : α) (tr : BTree α β) : BTree α β := Id.run (eraseM t leI (pure ()) k tr)
+
+/-- Remove and return the least entry. -/
+def eraseMin? (t : ℕ) : BTree α β → Option ((α × β) × BTree α β) := sorry
+
+/-- Remove and return the greatest entry. -/
+def eraseMax? (t : ℕ) : BTree α β → Option ((α × β) × BTree α β) := sorry
+
+theorem IsWF.insert (h : IsWF t tr) (k : α) (v : β) : IsWF t (insert t k v tr) := sorry
+
+theorem toList_insert (h : IsWF t tr) (k : α) (v : β) :
+    (insert t k v tr).toList = SortedAssoc.insert k v tr.toList := sorry
+
+theorem height_insert_le (h : IsWF t tr) (k : α) (v : β) :
+    (insert t k v tr).height ≤ tr.height + 1 := sorry
+
+theorem size_insert (h : IsWF t tr) (k : α) (v : β) :
+    (insert t k v tr).size = if (lookup k tr).isSome then tr.size else tr.size + 1 := sorry
+
+theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := sorry
+
+theorem toList_erase (h : IsWF t tr) (k : α) :
+    (erase t k tr).toList = SortedAssoc.erase k tr.toList := sorry
+
+theorem height_erase_le (h : IsWF t tr) (k : α) : (erase t k tr).height ≤ tr.height := sorry
+
+theorem size_erase (h : IsWF t tr) (k : α) :
+    (erase t k tr).size = if (lookup k tr).isSome then tr.size - 1 else tr.size := sorry
+
+theorem eraseMin?_eq (h : IsWF t tr) :
+    eraseMin? t tr = tr.toList.head?.map fun p => (p, erase t p.1 tr) := sorry
+
+/-- A root split at `t = 2`: a fourth key into a full root raises the height. -/
+example :
+    (insert 2 4 () (BTree.node (α := ℕ) (β := Unit) .leaf
+      [(1, (), .leaf), (2, (), .leaf), (3, (), .leaf)])).height = 2 := sorry
+
+/-- A root collapse at `t = 2`: erasing the only root key merges its two children. -/
+example :
+    (erase 2 2 (BTree.node (α := ℕ) (β := Unit)
+      (.node .leaf [(1, (), .leaf)]) [(2, (), .node .leaf [(3, (), .leaf)])])).height = 1 :=
+  sorry
+
+end UpdatesPure
+
+/-! ## Milestone 5: bulk loading and the tree-map bridge -/
+
+section Bulk
+
+variable {α β : Type} [LinearOrder α] {t : ℕ}
+
+/-- Build a well-formed tree from a sorted list in one pass. -/
+def ofSortedList (t : ℕ) (l : List (α × β)) : BTree α β := sorry
+
+theorem toList_ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
+    (ofSortedList t l).toList = l := sorry
+
+theorem IsWF.ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
+    IsWF t (ofSortedList t l) := sorry
+
+theorem height_ofSortedList_le (ht : 2 ≤ t) {l : List (α × β)}
+    (h : SortedAssoc.IsSortedAssoc l) :
+    (ofSortedList t l).height ≤ Nat.log t ((l.length + 1) / 2) + 1 := sorry
+
+/-- Output equality with Lean core's tree map; nothing about its internals is used. -/
+theorem toList_ofSortedList_eq_treeMap (ht : 2 ≤ t) {l : List (α × β)}
+    (h : SortedAssoc.IsSortedAssoc l) :
+    (ofSortedList t l).toList = (Std.TreeMap.ofList l compare).toList := sorry
+
+end Bulk
+
+/-! # Stage 2: costs -/
+
+/-! ## Milestone 6: node-visit bounds
+
+The `TimeM` instantiation: one tick per node visited, comparisons free. Its `ret` is the pure
+operation, by `IsMonadHom` from the polymorphic definition. -/
+
+section NodeVisits
+
+variable {α β : Type} [LinearOrder α] {t : ℕ} {tr : BTree α β}
+
+/-- The pure comparator, in `TimeM`. -/
+abbrev leT (a b : α) : TimeM ℕ Bool := pure (decide (a ≤ b))
+
+/-- Lookup, node-visit instrumentation. -/
+def lookupT (k : α) (tr : BTree α β) : TimeM ℕ (Option β) := lookupM leT (tick 1) k tr
+
+/-- Membership test, node-visit instrumentation. -/
+def containsT (k : α) (tr : BTree α β) : TimeM ℕ Bool := containsM leT (tick 1) k tr
+
+/-- Least entry, node-visit instrumentation. -/
+def minT (tr : BTree α β) : TimeM ℕ (Option (α × β)) := minM (tick 1) tr
+
+/-- Greatest entry, node-visit instrumentation. -/
+def maxT (tr : BTree α β) : TimeM ℕ (Option (α × β)) := maxM (tick 1) tr
+
+/-- Predecessor, node-visit instrumentation. -/
+def predT (k : α) (tr : BTree α β) : TimeM ℕ (Option (α × β)) := predM leT (tick 1) k tr
+
+/-- Successor, node-visit instrumentation. -/
+def succT (k : α) (tr : BTree α β) : TimeM ℕ (Option (α × β)) := succM leT (tick 1) k tr
+
+/-- Range restriction, node-visit instrumentation. -/
+def rangeT (lo hi : α) (tr : BTree α β) : TimeM ℕ (List (α × β)) :=
+  rangeM leT (tick 1) lo hi tr
+
+/-- Insertion, node-visit instrumentation. -/
+def insertT (t : ℕ) (k : α) (v : β) (tr : BTree α β) : TimeM ℕ (BTree α β) :=
+  insertM t leT (tick 1) k v tr
+
+/-- Erasure, node-visit instrumentation. -/
+def eraseT (t : ℕ) (k : α) (tr : BTree α β) : TimeM ℕ (BTree α β) :=
+  eraseM t leT (tick 1) k tr
+
+/-- Bulk loading charging one tick per node built. -/
+def ofSortedListT (t : ℕ) (l : List (α × β)) : TimeM ℕ (BTree α β) := sorry
+
+/-! ### Transfer: `ret` is the pure operation -/
+
+theorem ret_lookupT (k : α) : ⟪lookupT k tr⟫ = lookup k tr := sorry
+
+theorem ret_rangeT (lo hi : α) : ⟪rangeT lo hi tr⟫ = range lo hi tr := sorry
+
+theorem ret_insertT (k : α) (v : β) : ⟪insertT t k v tr⟫ = insert t k v tr := sorry
+
+theorem ret_eraseT (k : α) : ⟪eraseT t k tr⟫ = erase t k tr := sorry
+
+theorem ret_ofSortedListT (l : List (α × β)) : ⟪ofSortedListT t l⟫ = ofSortedList t l := sorry
+
+/-! ### Node-visit bounds -/
+
+theorem time_lookupT (h : IsWF t tr) (k : α) : (lookupT k tr).time ≤ tr.height := sorry
+
+theorem time_lookupT_le_log (h : IsWF t tr) (k : α) :
+    (lookupT k tr).time ≤ Nat.log t ((tr.size + 1) / 2) + 1 := sorry
+
+theorem time_minT (h : IsWF t tr) : (minT tr).time ≤ tr.height := sorry
+
+theorem time_maxT (h : IsWF t tr) : (maxT tr).time ≤ tr.height := sorry
+
+theorem time_predT (h : IsWF t tr) (k : α) : (predT k tr).time ≤ tr.height := sorry
+
+theorem time_succT (h : IsWF t tr) (k : α) : (succT k tr).time ≤ tr.height := sorry
+
+/-- Two boundary paths plus at most one node per output entry. -/
+theorem time_rangeT (h : IsWF t tr) (lo hi : α) :
+    (rangeT lo hi tr).time ≤ 2 * tr.height + (range lo hi tr).length := sorry
+
+theorem time_insertT (h : IsWF t tr) (k : α) (v : β) : (insertT t k v tr).time ≤ tr.height :=
+  sorry
+
+/-- Erasure inspects at most one child and two siblings per level under the top-down algorithm
+of Cormen et al.; a different algorithm states its own constant. -/
+theorem time_eraseT (h : IsWF t tr) (k : α) : (eraseT t k tr).time ≤ 3 * tr.height := sorry
+
+theorem time_ofSortedListT (l : List (α × β)) : (ofSortedListT t l).time ≤ l.length := sorry
+
+end NodeVisits
+
+/-! ## Milestone 7: comparison bounds and the search lower bound
+
+The `FreeM (LEQuery α)` instantiation: every comparison is a query, visits are free. Bounds
+stated with `UpperBound` hold over every oracle; the output-sensitive range bound is stated at
+the oracle of the real order only. -/
+
+section Comparisons
 
 variable {α β : Type} {t : ℕ} {tr : BTree α β}
 
-/-- The comparison instrumentation: every comparison is an `LEQuery`, visits are free. -/
+/-- Lookup, comparison instrumentation. -/
 def lookupQ (k : α) (tr : BTree α β) : FreeM (LEQuery α) (Option β) :=
   lookupM LEQuery.ask (pure ()) k tr
-
-/-- The comparison instrumentation of the binary-search variant. -/
-def lookupBinQ (k : α) (tr : BTree α β) : FreeM (LEQuery α) (Option β) :=
-  lookupBinM LEQuery.ask (pure ()) k tr
 
 /-- Range restriction, comparison instrumentation. -/
 def rangeQ (lo hi : α) (tr : BTree α β) : FreeM (LEQuery α) (List (α × β)) :=
   rangeM LEQuery.ask (pure ()) lo hi tr
 
-/-- Rank, comparison instrumentation with binary in-node search. -/
+/-- Rank, comparison instrumentation. -/
 def rankQ (k : α) (tr : BTree α β) : FreeM (LEQuery α) ℕ := rankM LEQuery.ask (pure ()) k tr
 
+/-- Insertion, comparison instrumentation. -/
+def insertQ (t : ℕ) (k : α) (v : β) (tr : BTree α β) : FreeM (LEQuery α) (BTree α β) :=
+  insertM t LEQuery.ask (pure ()) k v tr
+
+/-- Erasure, comparison instrumentation. -/
+def eraseQ (t : ℕ) (k : α) (tr : BTree α β) : FreeM (LEQuery α) (BTree α β) :=
+  eraseM t LEQuery.ask (pure ()) k tr
+
+/-- Well-formed inputs, as the domain of a bounded program. -/
+abbrev WFInput (α β : Type) [LinearOrder α] (t : ℕ) := {p : BTree α β × α // IsWF t p.1}
+
 variable [LinearOrder α]
-
-/-- The pure comparator. -/
-abbrev leP (a b : α) : TimeM ℕ Bool := pure (decide (a ≤ b))
-
-/-- The node-visit instrumentation: one tick per node visited, comparisons free. The primary
-cost model. -/
-def lookup (k : α) (tr : BTree α β) : TimeM ℕ (Option β) := lookupM leP (tick 1) k tr
-
-/-- Node-visit instrumentation of the binary-search variant. -/
-def lookupBin (k : α) (tr : BTree α β) : TimeM ℕ (Option β) := lookupBinM leP (tick 1) k tr
-
-/-- Membership test, node-visit instrumentation. -/
-def contains (k : α) (tr : BTree α β) : TimeM ℕ Bool := containsM leP (tick 1) k tr
-
-/-- Least entry, node-visit instrumentation. -/
-def min? (tr : BTree α β) : TimeM ℕ (Option (α × β)) := minM (tick 1) tr
-
-/-- Greatest entry, node-visit instrumentation. -/
-def max? (tr : BTree α β) : TimeM ℕ (Option (α × β)) := maxM (tick 1) tr
-
-/-- Predecessor, node-visit instrumentation. -/
-def pred? (k : α) (tr : BTree α β) : TimeM ℕ (Option (α × β)) := predM leP (tick 1) k tr
-
-/-- Successor, node-visit instrumentation. -/
-def succ? (k : α) (tr : BTree α β) : TimeM ℕ (Option (α × β)) := succM leP (tick 1) k tr
-
-/-- Range restriction, node-visit instrumentation. -/
-def range (lo hi : α) (tr : BTree α β) : TimeM ℕ (List (α × β)) :=
-  rangeM leP (tick 1) lo hi tr
 
 /-- The oracle of the actual order. -/
 abbrev orderOracle : {ι : Type} → LEQuery α ι → ι :=
   LEQuery.oracleOf fun a b => decide (a ≤ b)
 
-/-! ### Within-node search -/
+/-! ### Transfer: `eval` at the order's oracle is the pure operation -/
 
-theorem ret_slotM (k : α) (rest : List (α × β × BTree α β)) :
-    ⟪slotM leP k rest⟫ = (rest.takeWhile fun e => decide (e.1 < k)).length := sorry
+theorem eval_lookupQ (k : α) : (lookupQ k tr).eval orderOracle = lookup k tr := sorry
 
-theorem ret_slotBinM (k : α) (rest : List (α × β × BTree α β)) :
-    ⟪slotBinM leP k rest⟫ = ⟪slotM leP k rest⟫ := sorry
+theorem eval_rangeQ (lo hi : α) : (rangeQ lo hi tr).eval orderOracle = range lo hi tr := sorry
+
+theorem eval_rankQ (k : α) : (rankQ k tr).eval orderOracle = rank k tr := sorry
+
+theorem eval_insertQ (k : α) (v : β) :
+    (insertQ t k v tr).eval orderOracle = insert t k v tr := sorry
+
+theorem eval_eraseQ (k : α) : (eraseQ t k tr).eval orderOracle = erase t k tr := sorry
+
+/-! ### Comparison bounds with linear in-node search -/
 
 theorem countQueries_slotM_le (oracle : {ι : Type} → LEQuery α ι → ι) (k : α)
     (rest : List (α × β × BTree α β)) :
     (slotM LEQuery.ask k rest).countQueries oracle ≤ rest.length := sorry
 
+/-- At most `2t` comparisons at each of at most `height` nodes, over every oracle. -/
+theorem lookupQ_upperBound (ht : 2 ≤ t) :
+    UpperBound (fun p : WFInput α β t => lookupQ p.1.2 p.1.1) (fun p => p.1.1.height)
+      (fun h => 2 * t * h) := sorry
+
+theorem insertQ_upperBound (ht : 2 ≤ t) (v : β) :
+    UpperBound (fun p : WFInput α β t => insertQ t p.1.2 v p.1.1) (fun p => p.1.1.height)
+      (fun h => 2 * t * h) := sorry
+
+/-- The node-visit constant of erasure times the per-node comparison bound. -/
+theorem eraseQ_upperBound (ht : 2 ≤ t) :
+    UpperBound (fun p : WFInput α β t => eraseQ t p.1.2 p.1.1) (fun p => p.1.1.height)
+      (fun h => 2 * t * (3 * h)) := sorry
+
+/-- Range restriction is output-sensitive, and the output under an arbitrary oracle is not the
+output under `≤`, so this bound is stated at the order's oracle only. -/
+theorem countQueries_rangeQ_le (h : IsWF t tr) (lo hi : α) :
+    (rangeQ lo hi tr).countQueries orderOracle ≤
+      2 * t * (2 * tr.height + (range lo hi tr).length) := sorry
+
+end Comparisons
+
+/-! ### Binary in-node search -/
+
+section BinarySearchPolymorphic
+
+variable {α β : Type} {m : Type → Type w} [Monad m]
+
+/-- Within-node binary search over the same list: at most `⌈log₂ (length + 1)⌉ + 1`
+comparisons on any list, and the same answer as `slotM` on sorted keys. Binary search over a
+list reduces comparisons and nothing else; neither cost model charges the traversal. -/
+def slotBinM (le : α → α → m Bool) (k : α) (rest : List (α × β × BTree α β)) : m ℕ := sorry
+
+/-- Lookup using `slotBinM` at each node instead of the linear walk. -/
+def lookupBinM (le : α → α → m Bool) (visit : m Unit) (k : α) : BTree α β → m (Option β) :=
+  sorry
+
+/-- Rank using `slotBinM` at each node. -/
+def rankBinM (le : α → α → m Bool) (visit : m Unit) (k : α) : BTree α β → m ℕ := sorry
+
+end BinarySearchPolymorphic
+
+section BinarySearch
+
+variable {α β : Type} {t : ℕ} {tr : BTree α β}
+
+/-- The comparison bound holds for every list and every oracle. -/
 theorem countQueries_slotBinM_le (oracle : {ι : Type} → LEQuery α ι → ι) (k : α)
     (rest : List (α × β × BTree α β)) :
     (slotBinM LEQuery.ask k rest).countQueries oracle ≤ Nat.clog 2 (rest.length + 1) + 1 :=
   sorry
 
-/-! ### Model equations, transfer, node-visit bounds -/
+/-- Lookup with binary in-node search, comparison instrumentation. -/
+def lookupBinQ (k : α) (tr : BTree α β) : FreeM (LEQuery α) (Option β) :=
+  lookupBinM LEQuery.ask (pure ()) k tr
 
-theorem ret_lookup (h : IsWF t tr) (k : α) : ⟪lookup k tr⟫ = SortedAssoc.lookup k tr.toList :=
-  sorry
+/-- Rank with binary in-node search, comparison instrumentation. -/
+def rankBinQ (k : α) (tr : BTree α β) : FreeM (LEQuery α) ℕ :=
+  rankBinM LEQuery.ask (pure ()) k tr
 
-/-- The comparison program evaluated at the order's oracle is the pure lookup. Proved once
-through `IsMonadHom` from the polymorphic definition. -/
-theorem eval_lookupQ (k : α) : (lookupQ k tr).eval orderOracle = ⟪lookup k tr⟫ := sorry
+variable [LinearOrder α]
 
-theorem ret_lookupBin (h : IsWF t tr) (k : α) : ⟪lookupBin k tr⟫ = ⟪lookup k tr⟫ := sorry
+/-- Binary search, pure. -/
+def slotBin (k : α) (rest : List (α × β × BTree α β)) : ℕ := Id.run (slotBinM leI k rest)
 
-theorem time_lookup (h : IsWF t tr) (k : α) : (lookup k tr).time ≤ tr.height := sorry
+/-- Lookup with binary in-node search, pure. -/
+def lookupBin (k : α) (tr : BTree α β) : Option β := Id.run (lookupBinM leI (pure ()) k tr)
 
-theorem time_lookup_le_log (h : IsWF t tr) (k : α) :
-    (lookup k tr).time ≤ Nat.log t ((tr.size + 1) / 2) + 1 := sorry
+/-- Agreement with linear search needs sorted keys; binary search is not specified on an
+unsorted node. -/
+theorem slotBin_eq_slot (k : α) {rest : List (α × β × BTree α β)}
+    (hs : (rest.map (·.1)).Pairwise (· < ·)) : slotBin k rest = slot k rest := sorry
 
-theorem ret_contains (h : IsWF t tr) (k : α) :
-    ⟪contains k tr⟫ = (SortedAssoc.lookup k tr.toList).isSome := sorry
+theorem lookupBin_eq (h : IsWF t tr) (k : α) : lookupBin k tr = lookup k tr := sorry
 
-theorem ret_min? (h : IsWF t tr) : ⟪min? tr⟫ = SortedAssoc.min? tr.toList := sorry
+theorem eval_lookupBinQ (h : IsWF t tr) (k : α) :
+    (lookupBinQ k tr).eval orderOracle = lookup k tr := sorry
 
-theorem time_min? (h : IsWF t tr) : (min? tr).time ≤ tr.height := sorry
-
-theorem ret_max? (h : IsWF t tr) : ⟪max? tr⟫ = SortedAssoc.max? tr.toList := sorry
-
-theorem time_max? (h : IsWF t tr) : (max? tr).time ≤ tr.height := sorry
-
-theorem ret_pred? (h : IsWF t tr) (k : α) : ⟪pred? k tr⟫ = SortedAssoc.pred? k tr.toList :=
-  sorry
-
-theorem time_pred? (h : IsWF t tr) (k : α) : (pred? k tr).time ≤ tr.height := sorry
-
-theorem ret_succ? (h : IsWF t tr) (k : α) : ⟪succ? k tr⟫ = SortedAssoc.succ? k tr.toList :=
-  sorry
-
-theorem time_succ? (h : IsWF t tr) (k : α) : (succ? k tr).time ≤ tr.height := sorry
-
-theorem ret_range (h : IsWF t tr) (lo hi : α) :
-    ⟪range lo hi tr⟫ = SortedAssoc.range lo hi tr.toList := sorry
-
-theorem eval_rangeQ (lo hi : α) : (rangeQ lo hi tr).eval orderOracle = ⟪range lo hi tr⟫ :=
-  sorry
-
-/-- Two boundary paths plus at most one node per output entry. -/
-theorem time_range (h : IsWF t tr) (lo hi : α) :
-    (range lo hi tr).time ≤ 2 * tr.height + ⟪range lo hi tr⟫.length := sorry
-
-/-! ### Comparison bounds over all oracles -/
-
-/-- Well-formed inputs, as the domain of a bounded program. -/
-abbrev WFInput (α β : Type) [LinearOrder α] (t : ℕ) := {p : BTree α β × α // IsWF t p.1}
-
-/-- Linear in-node search: at most `2t` comparisons at each of at most `height` nodes. -/
-theorem lookupQ_upperBound (ht : 2 ≤ t) :
-    UpperBound (fun p : WFInput α β t => lookupQ p.1.2 p.1.1) (fun p => p.1.1.height)
-      (fun h => 2 * t * h) := sorry
-
-/-- Binary in-node search: at most `⌈log₂ (2t)⌉ + 1` comparisons at each node. -/
+/-- At most `⌈log₂ (2t)⌉ + 1` comparisons at each node. -/
 theorem lookupBinQ_upperBound (ht : 2 ≤ t) :
     UpperBound (fun p : WFInput α β t => lookupBinQ p.1.2 p.1.1) (fun p => p.1.1.height)
       (fun h => (Nat.clog 2 (2 * t) + 1) * h) := sorry
 
-/-- Range restriction, pointwise: the node-visit bound times the per-node comparison bound. -/
-theorem countQueries_rangeQ_le (h : IsWF t tr) (oracle : {ι : Type} → LEQuery α ι → ι)
-    (lo hi : α) :
-    (rangeQ lo hi tr).countQueries oracle ≤
-      2 * t * (2 * tr.height + ⟪range lo hi tr⟫.length) := sorry
+theorem rankBinQ_upperBound (ht : 2 ≤ t) :
+    UpperBound (fun p : WFInput α β t => rankBinQ p.1.2 p.1.1) (fun p => p.1.1.height)
+      (fun h => (Nat.clog 2 (2 * t) + 1) * h) := sorry
 
-end QueriesInstances
+end BinarySearch
 
 /-! ### The comparison lower bound for search -/
 
@@ -501,152 +748,79 @@ def IsRank (prog : List α × α → FreeM (LEQuery α) ℕ) : Prop :=
     (prog (l, k)).eval (LEQuery.oracleOf fun a b => decide (a ≤ b)) =
       (l.filter fun a => decide (a < k)).length
 
+/-- A comparison-based lookup program is correct if, under the oracle of every linear order on
+the key type, it returns `List.lookup` on a strictly sorted list of keys paired with their
+positions. -/
+def IsLookup (prog : List (α × ℕ) × α → FreeM (LEQuery α) (Option ℕ)) : Prop :=
+  ∀ [LinearOrder α] (l : List (α × ℕ)) (k : α), (l.map Prod.fst).Pairwise (· < ·) →
+    (prog (l, k)).eval (LEQuery.oracleOf fun a b => decide (a ≤ b)) = List.lookup k l
+
 /-- Any correct comparison-based rank program makes at least `⌈log₂ (n + 1)⌉` comparisons on
-some input of `n` keys: `n + 1` hidden placements of `k` give `n + 1` distinct answers, and
-`FreeM.exists_countQueries_ge_clog` applies with response cardinality two. -/
+some input of `n` keys. The substance is the family: `n + 1` linear orders placing `k` in each
+gap give `n + 1` distinct answers, and `FreeM.exists_countQueries_ge_clog` applies with
+response cardinality two. -/
 theorem IsRank.lowerBound [Infinite α] {prog : List α × α → FreeM (LEQuery α) ℕ}
     (h : IsRank prog) :
     LowerBound prog (fun p => p.1.length) (fun n => Nat.clog 2 (n + 1)) := sorry
 
+/-- The same bound for lookup, with its own family: `k` equal to each of the `n` keys, whose
+positions are distinct values, or absent, give `n + 1` distinct answers. The rank bound does
+not transfer to lookup by itself; this is a separate target. -/
+theorem IsLookup.lowerBound [Infinite α]
+    {prog : List (α × ℕ) × α → FreeM (LEQuery α) (Option ℕ)} (h : IsLookup prog) :
+    LowerBound prog (fun p => p.1.length) (fun n => Nat.clog 2 (n + 1)) := sorry
+
 end LowerBoundSearch
 
-/-! ## Milestone 4: insertion and erasure -/
+section MeetingTheBound
 
-section UpdatesPolymorphic
+variable {α : Type} {t : ℕ}
 
-variable {α β : Type} {m : Type → Type w} [Monad m]
+/-- The B-tree rank program on a bulk-loaded tree is a correct rank program. -/
+theorem rankBinQ_isRank (t : ℕ) :
+    IsRank fun p : List α × α =>
+      rankBinQ p.2 (ofSortedList (β := Unit) t (p.1.map fun k => (k, ()))) := sorry
 
-/-- Insert-or-replace, visiting each node on the search path once. Top-down with pre-emptive
-splitting, or bottom-up with overflow, are both acceptable; `t` selects the occupancy bounds. -/
-def insertM (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (k : α) (v : β) :
-    BTree α β → m (BTree α β) := sorry
-
-/-- Erase, visiting each node on the search path once. Interior keys are replaced by a
-predecessor or successor entry; erasure is not restricted to leaves. -/
-def eraseM (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (k : α) :
-    BTree α β → m (BTree α β) := sorry
-
-end UpdatesPolymorphic
-
-section UpdatesInstances
-
-variable {α β : Type} {t : ℕ} {tr : BTree α β}
-
-/-- Insertion, comparison instrumentation. -/
-def insertQ (t : ℕ) (k : α) (v : β) (tr : BTree α β) : FreeM (LEQuery α) (BTree α β) :=
-  insertM t LEQuery.ask (pure ()) k v tr
-
-/-- Erasure, comparison instrumentation. -/
-def eraseQ (t : ℕ) (k : α) (tr : BTree α β) : FreeM (LEQuery α) (BTree α β) :=
-  eraseM t LEQuery.ask (pure ()) k tr
+/-- The B-tree lookup program on a bulk-loaded tree is a correct lookup program. -/
+theorem lookupBinQ_isLookup (t : ℕ) :
+    IsLookup fun p : List (α × ℕ) × α => lookupBinQ p.2 (ofSortedList t p.1) := sorry
 
 variable [LinearOrder α]
 
-/-- Insertion, node-visit instrumentation. -/
-def insert (t : ℕ) (k : α) (v : β) (tr : BTree α β) : TimeM ℕ (BTree α β) :=
-  insertM t leP (tick 1) k v tr
+/-- Binary in-node search against the lower bound, with the dependence on `t` explicit: the
+ratio to `⌈log₂ (n + 1)⌉` is bounded for fixed `t`. -/
+theorem countQueries_rankBinQ_le_log (ht : 2 ≤ t) {l : List α} (hs : l.Pairwise (· < ·)) (k : α)
+    (oracle : {ι : Type} → LEQuery α ι → ι) :
+    (rankBinQ k (ofSortedList (β := Unit) t (l.map fun k => (k, ())))).countQueries oracle ≤
+      (Nat.clog 2 (2 * t) + 1) * (Nat.log t ((l.length + 1) / 2) + 1) := sorry
 
-/-- Erasure, node-visit instrumentation. -/
-def erase (t : ℕ) (k : α) (tr : BTree α β) : TimeM ℕ (BTree α β) :=
-  eraseM t leP (tick 1) k tr
+/-- Linear in-node search against the lower bound: also within a constant factor for fixed `t`,
+with a constant that grows like `t / log t`. The target is the pair of explicit inequalities,
+not an optimality claim. -/
+theorem countQueries_rankQ_le_log (ht : 2 ≤ t) {l : List α} (hs : l.Pairwise (· < ·)) (k : α)
+    (oracle : {ι : Type} → LEQuery α ι → ι) :
+    (rankQ k (ofSortedList (β := Unit) t (l.map fun k => (k, ())))).countQueries oracle ≤
+      2 * t * (Nat.log t ((l.length + 1) / 2) + 1) := sorry
 
-/-- Remove and return the least entry. -/
-def eraseMin? (t : ℕ) : BTree α β → TimeM ℕ (Option ((α × β) × BTree α β)) := sorry
-
-/-- Remove and return the greatest entry. -/
-def eraseMax? (t : ℕ) : BTree α β → TimeM ℕ (Option ((α × β) × BTree α β)) := sorry
-
-theorem IsWF.insert (h : IsWF t tr) (k : α) (v : β) : IsWF t ⟪insert t k v tr⟫ := sorry
-
-theorem toList_insert (h : IsWF t tr) (k : α) (v : β) :
-    ⟪insert t k v tr⟫.toList = SortedAssoc.insert k v tr.toList := sorry
-
-theorem eval_insertQ (k : α) (v : β) :
-    (insertQ t k v tr).eval orderOracle = ⟪insert t k v tr⟫ := sorry
-
-theorem time_insert (h : IsWF t tr) (k : α) (v : β) : (insert t k v tr).time ≤ tr.height :=
-  sorry
-
-theorem insertQ_upperBound (ht : 2 ≤ t) (v : β) :
-    UpperBound (fun p : WFInput α β t => insertQ t p.1.2 v p.1.1) (fun p => p.1.1.height)
-      (fun h => 2 * t * h) := sorry
-
-theorem height_insert_le (h : IsWF t tr) (k : α) (v : β) :
-    ⟪insert t k v tr⟫.height ≤ tr.height + 1 := sorry
-
-theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t ⟪erase t k tr⟫ := sorry
-
-theorem toList_erase (h : IsWF t tr) (k : α) :
-    ⟪erase t k tr⟫.toList = SortedAssoc.erase k tr.toList := sorry
-
-theorem eval_eraseQ (k : α) : (eraseQ t k tr).eval orderOracle = ⟪erase t k tr⟫ := sorry
-
-theorem time_erase (h : IsWF t tr) (k : α) : (erase t k tr).time ≤ tr.height := sorry
-
-theorem eraseQ_upperBound (ht : 2 ≤ t) :
-    UpperBound (fun p : WFInput α β t => eraseQ t p.1.2 p.1.1) (fun p => p.1.1.height)
-      (fun h => 2 * t * h) := sorry
-
-theorem height_erase_le (h : IsWF t tr) (k : α) : ⟪erase t k tr⟫.height ≤ tr.height := sorry
-
-theorem ret_eraseMin? (h : IsWF t tr) :
-    ⟪eraseMin? t tr⟫ = tr.toList.head?.map fun p => (p, ⟪erase t p.1 tr⟫) := sorry
-
-theorem time_eraseMin? (h : IsWF t tr) : (eraseMin? t tr).time ≤ tr.height := sorry
-
-end UpdatesInstances
-
-/-! ## Milestone 5: bulk loading and the tree-map bridge (headline signatures) -/
-
-section Bulk
-
-variable {α β : Type} [LinearOrder α] {t : ℕ}
-
-/-- Build a well-formed tree from a sorted list in one pass. -/
-def ofSortedList (t : ℕ) (l : List (α × β)) : BTree α β := sorry
-
-/-- The same construction charging one tick per node built. -/
-def ofSortedListT (t : ℕ) (l : List (α × β)) : TimeM ℕ (BTree α β) := sorry
-
-theorem ret_ofSortedListT (l : List (α × β)) : ⟪ofSortedListT t l⟫ = ofSortedList t l := sorry
-
-theorem time_ofSortedListT (l : List (α × β)) : (ofSortedListT t l).time ≤ l.length := sorry
-
-theorem toList_ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
-    (ofSortedList t l).toList = l := sorry
-
-theorem IsWF.ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
-    IsWF t (ofSortedList t l) := sorry
-
-/-- Output equality with Lean core's tree map; nothing about its internals is used. -/
-theorem toList_ofSortedList_eq_treeMap (ht : 2 ≤ t) {l : List (α × β)}
-    (h : SortedAssoc.IsSortedAssoc l) :
-    (ofSortedList t l).toList = (Std.TreeMap.ofList l compare).toList := sorry
-
-end Bulk
-
-/-- The B-tree rank program on a bulk-loaded tree is a correct comparison-based rank program,
-so the lower bound of Milestone 3 applies to it and `lookupBinQ_upperBound` meets that bound up
-to a constant through `IsWF.height_le_log`. -/
-theorem rankQ_isRank {α : Type} (t : ℕ) :
-    IsRank fun p : List α × α => rankQ p.2 (ofSortedList (β := Unit) t (p.1.map fun k => (k, ()))) :=
-  sorry
+end MeetingTheBound
 
 end BTree
 
-/-! ## Milestone 6: read-only operations behind a node-access oracle
+/-! ## Milestone 8: read-only operations behind a node-access oracle
 
 The tree is visible only through `read` queries on an abstract handle type, so the number of
-node reads is counted structurally. Comparisons are pure here; the comparison model is
-Milestone 3's business. -/
+node reads is counted structurally. A reference is `Option H`, with `none` the empty leaf, so
+that the empty tree is read zero times, as it is visited zero times; this is what makes the
+read count equal to the `TimeM` visit count rather than one more. Comparisons are pure here;
+the comparison model is Milestone 7's business. -/
 
 namespace NodeAccess
 
 variable {α β H : Type}
 
-/-- What the oracle reveals about one node: `none` for the empty leaf, otherwise a first child
-handle and `(key, value, child handle)` triples. -/
-abbrev NodeView (α β H : Type) := Option (H × List (α × β × H))
+/-- What the oracle reveals about one node: a first child reference and
+`(key, value, child reference)` triples. -/
+abbrev NodeView (α β H : Type) := Option H × List (α × β × Option H)
 
 /-- The single query: read the node behind a handle. -/
 inductive NodeQuery (α β H : Type) : Type → Type where
@@ -660,54 +834,65 @@ def Store.oracle (s : Store α β H) : {ι : Type} → NodeQuery α β H ι → 
   | _, .read h => s h
 
 mutual
-/-- The functional tree a handle denotes in a store. -/
-def Denotes (s : Store α β H) : H → BTree α β → Prop
-  | h, .leaf => s h = none
-  | h, .node first rest => ∃ h₀ hs, s h = some (h₀, hs) ∧ Denotes s h₀ first ∧
-      DenotesRest s hs rest
+/-- The functional tree a reference denotes in a store. -/
+def Denotes (s : Store α β H) : Option H → BTree α β → Prop
+  | none, .leaf => True
+  | some h, .node first rest => ∃ r₀ rs, s h = (r₀, rs) ∧ Denotes s r₀ first ∧
+      DenotesRest s rs rest
+  | _, _ => False
 /-- Triple-by-triple denotation of the children following a first child. -/
-def DenotesRest (s : Store α β H) : List (α × β × H) → List (α × β × BTree α β) → Prop
+def DenotesRest (s : Store α β H) : List (α × β × Option H) → List (α × β × BTree α β) → Prop
   | [], [] => True
-  | (k, v, h) :: hs, (k', v', c) :: rest => k = k' ∧ v = v' ∧ Denotes s h c ∧ DenotesRest s hs rest
+  | (k, v, r) :: rs, (k', v', c) :: rest => k = k' ∧ v = v' ∧ Denotes s r c ∧ DenotesRest s rs rest
   | _, _ => False
 end
 
 /-- Lookup through the oracle: one `read` per node visited, comparisons pure. `fuel` bounds the
 descent, since handles carry no size. -/
-def lookupR [LinearOrder α] (fuel : ℕ) (k : α) (root : H) :
+def lookupR [LinearOrder α] (fuel : ℕ) (k : α) (root : Option H) :
     FreeM (NodeQuery α β H) (Option β) := sorry
 
 /-- Range restriction through the oracle. -/
-def rangeR [LinearOrder α] (fuel : ℕ) (lo hi : α) (root : H) :
+def rangeR [LinearOrder α] (fuel : ℕ) (lo hi : α) (root : Option H) :
     FreeM (NodeQuery α β H) (List (α × β)) := sorry
 
-variable [LinearOrder α] {t fuel : ℕ} {s : Store α β H} {root : H} {tr : BTree α β}
+variable [LinearOrder α] {t fuel : ℕ} {s : Store α β H} {root : Option H} {tr : BTree α β}
 
 theorem eval_lookupR (h : BTree.IsWF t tr) (hd : Denotes s root tr) (hf : tr.height ≤ fuel)
-    (k : α) : (lookupR fuel k root).eval s.oracle = ⟪BTree.lookup k tr⟫ := sorry
+    (k : α) : (lookupR fuel k root).eval s.oracle = BTree.lookup k tr := sorry
 
 /-- Node reads are exactly the `TimeM` visit count: the visit model is structural for queries. -/
 theorem countQueries_lookupR (h : BTree.IsWF t tr) (hd : Denotes s root tr)
     (hf : tr.height ≤ fuel) (k : α) :
-    (lookupR fuel k root).countQueries s.oracle = (BTree.lookup k tr).time := sorry
+    (lookupR fuel k root).countQueries s.oracle = (BTree.lookupT k tr).time := sorry
 
 theorem countQueries_lookupR_le (h : BTree.IsWF t tr) (hd : Denotes s root tr)
     (hf : tr.height ≤ fuel) (k : α) :
     (lookupR fuel k root).countQueries s.oracle ≤ tr.height := sorry
 
 theorem eval_rangeR (h : BTree.IsWF t tr) (hd : Denotes s root tr) (hf : tr.height ≤ fuel)
-    (lo hi : α) : (rangeR fuel lo hi root).eval s.oracle = ⟪BTree.range lo hi tr⟫ := sorry
+    (lo hi : α) : (rangeR fuel lo hi root).eval s.oracle = BTree.range lo hi tr := sorry
 
 theorem countQueries_rangeR (h : BTree.IsWF t tr) (hd : Denotes s root tr)
     (hf : tr.height ≤ fuel) (lo hi : α) :
-    (rangeR fuel lo hi root).countQueries s.oracle = (BTree.range lo hi tr).time := sorry
+    (rangeR fuel lo hi root).countQueries s.oracle = (BTree.rangeT lo hi tr).time := sorry
+
+/-- Range restriction reads at most `2 · height + k` nodes, not `height`. -/
+theorem countQueries_rangeR_le (h : BTree.IsWF t tr) (hd : Denotes s root tr)
+    (hf : tr.height ≤ fuel) (lo hi : α) :
+    (rangeR fuel lo hi root).countQueries s.oracle ≤
+      2 * tr.height + (BTree.range lo hi tr).length := sorry
 
 end NodeAccess
 
-/-! ## Milestones 7 and 8: B+-trees (headline signatures)
+/-! # Stage 3: B+-trees -/
 
-The read operations and updates follow the polymorphic-definition, two-instrumentation pattern
-of Milestones 3 and 4; only the node-visit instantiations are stated here. -/
+/-! ## Milestones 9 to 11: B+-trees (headline signatures)
+
+The read operations and updates follow the polymorphic-definition pattern of Milestones 3 and
+4, with the pure instantiation in Milestones 9 and 10 and the `TimeM` and `FreeM`
+instantiations in Milestone 11; only the pure operations and a few cost statements are stated
+here. -/
 
 /-- A B+-tree. Leaves hold entries; an interior node is a first child followed by
 `(separator, child)` pairs. Keys below a separator are strictly smaller than it, and keys in the
@@ -794,51 +979,48 @@ theorem IsWF.height_le_log (h : IsWF t tr) : tr.height ≤ Nat.log t tr.size + 1
 theorem IsWF.pow_le_size (h : IsWF t tr) (h2 : 2 ≤ tr.height) :
     t ^ (tr.height - 1) ≤ tr.size := sorry
 
-/-- Lookup, node-visit instrumentation. -/
-def lookup (k : α) : BPlusTree α β → TimeM ℕ (Option β) := sorry
+/-! ### Milestone 9: queries, pure -/
 
-/-- Range restriction, node-visit instrumentation. -/
-def range (lo hi : α) : BPlusTree α β → TimeM ℕ (List (α × β)) := sorry
+/-- Lookup, pure. -/
+def lookup (k : α) : BPlusTree α β → Option β := sorry
 
-/-- Insert-or-replace, node-visit instrumentation. -/
-def insert (t : ℕ) (k : α) (v : β) : BPlusTree α β → TimeM ℕ (BPlusTree α β) := sorry
+/-- Range restriction, pure. -/
+def range (lo hi : α) : BPlusTree α β → List (α × β) := sorry
+
+theorem lookup_eq (h : IsWF t tr) (k : α) : lookup k tr = SortedAssoc.lookup k tr.toList := sorry
+
+theorem range_eq (h : IsWF t tr) (lo hi : α) :
+    range lo hi tr = SortedAssoc.range lo hi tr.toList := sorry
+
+/-- The output of a range query is the restriction of a contiguous run of leaves in which every
+leaf contributes and every leaf other than the first and last is returned whole. Without the
+last two conjuncts the run could be all of `leaves`. -/
+theorem range_eq_flatten_run (h : IsWF t tr) (lo hi : α) :
+    ∃ pre run post : List (List (α × β)), tr.leaves = pre ++ run ++ post ∧
+      range lo hi tr = (run.map (SortedAssoc.range lo hi)).flatten ∧
+      (∀ l ∈ run, SortedAssoc.range lo hi l ≠ []) ∧
+      ∀ l ∈ (run.drop 1).dropLast, SortedAssoc.range lo hi l = l := sorry
+
+/-! ### Milestone 10: updates and bulk loading, pure -/
+
+/-- Insert-or-replace, pure. -/
+def insert (t : ℕ) (k : α) (v : β) : BPlusTree α β → BPlusTree α β := sorry
 
 /-- Erase; separators stay valid without being present as keys. -/
-def erase (t : ℕ) (k : α) : BPlusTree α β → TimeM ℕ (BPlusTree α β) := sorry
+def erase (t : ℕ) (k : α) : BPlusTree α β → BPlusTree α β := sorry
 
 /-- Bulk loading from a sorted list. -/
 def ofSortedList (t : ℕ) (l : List (α × β)) : BPlusTree α β := sorry
 
-theorem ret_lookup (h : IsWF t tr) (k : α) : ⟪lookup k tr⟫ = SortedAssoc.lookup k tr.toList :=
-  sorry
-
-theorem time_lookup (h : IsWF t tr) (k : α) : (lookup k tr).time ≤ tr.height := sorry
-
-theorem ret_range (h : IsWF t tr) (lo hi : α) :
-    ⟪range lo hi tr⟫ = SortedAssoc.range lo hi tr.toList := sorry
-
-/-- The output of a range query is a contiguous run of leaves, with the end leaves restricted. -/
-theorem range_eq_flatten_infix (h : IsWF t tr) (lo hi : α) :
-    ∃ pre run post : List (List (α × β)), tr.leaves = pre ++ run ++ post ∧
-      ⟪range lo hi tr⟫ = (run.map (SortedAssoc.range lo hi)).flatten := sorry
-
-theorem time_range (h : IsWF t tr) (lo hi : α) :
-    (range lo hi tr).time ≤ 2 * tr.height + ⟪range lo hi tr⟫.length := sorry
-
-theorem IsWF.insert (h : IsWF t tr) (k : α) (v : β) : IsWF t ⟪insert t k v tr⟫ := sorry
+theorem IsWF.insert (h : IsWF t tr) (k : α) (v : β) : IsWF t (insert t k v tr) := sorry
 
 theorem toList_insert (h : IsWF t tr) (k : α) (v : β) :
-    ⟪insert t k v tr⟫.toList = SortedAssoc.insert k v tr.toList := sorry
+    (insert t k v tr).toList = SortedAssoc.insert k v tr.toList := sorry
 
-theorem time_insert (h : IsWF t tr) (k : α) (v : β) : (insert t k v tr).time ≤ tr.height :=
-  sorry
-
-theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t ⟪erase t k tr⟫ := sorry
+theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := sorry
 
 theorem toList_erase (h : IsWF t tr) (k : α) :
-    ⟪erase t k tr⟫.toList = SortedAssoc.erase k tr.toList := sorry
-
-theorem time_erase (h : IsWF t tr) (k : α) : (erase t k tr).time ≤ tr.height := sorry
+    (erase t k tr).toList = SortedAssoc.erase k tr.toList := sorry
 
 theorem toList_ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
     (ofSortedList t l).toList = l := sorry
@@ -851,7 +1033,43 @@ theorem toList_ofSortedList_eq_btree {α β : Type} [LinearOrder α] (ht : 2 ≤
     {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
     (ofSortedList t l).toList = (BTree.ofSortedList t l).toList := sorry
 
+/-! ### Milestone 11: costs -/
+
+/-- Lookup, node-visit instrumentation. -/
+def lookupT (k : α) : BPlusTree α β → TimeM ℕ (Option β) := sorry
+
+/-- Range restriction, node-visit instrumentation. -/
+def rangeT (lo hi : α) : BPlusTree α β → TimeM ℕ (List (α × β)) := sorry
+
+/-- Insertion, node-visit instrumentation. -/
+def insertT (t : ℕ) (k : α) (v : β) : BPlusTree α β → TimeM ℕ (BPlusTree α β) := sorry
+
+/-- Erasure, node-visit instrumentation. -/
+def eraseT (t : ℕ) (k : α) : BPlusTree α β → TimeM ℕ (BPlusTree α β) := sorry
+
+theorem ret_lookupT (k : α) : ⟪lookupT k tr⟫ = lookup k tr := sorry
+
+theorem time_lookupT (h : IsWF t tr) (k : α) : (lookupT k tr).time ≤ tr.height := sorry
+
+theorem time_rangeT (h : IsWF t tr) (lo hi : α) :
+    (rangeT lo hi tr).time ≤ 2 * tr.height + (range lo hi tr).length := sorry
+
+theorem time_insertT (h : IsWF t tr) (k : α) (v : β) : (insertT t k v tr).time ≤ tr.height :=
+  sorry
+
+theorem time_eraseT (h : IsWF t tr) (k : α) : (eraseT t k tr).time ≤ 3 * tr.height := sorry
+
 end Headline
+
+/-- Lookup, comparison instrumentation. -/
+def lookupQ {α β : Type} (k : α) : BPlusTree α β → FreeM (LEQuery α) (Option β) := sorry
+
+/-- Well-formed inputs, as the domain of a bounded program. -/
+abbrev WFInput (α β : Type) [LinearOrder α] (t : ℕ) := {p : BPlusTree α β × α // IsWF t p.1}
+
+theorem lookupQ_upperBound {α β : Type} [LinearOrder α] {t : ℕ} (ht : 2 ≤ t) :
+    UpperBound (fun p : WFInput α β t => lookupQ p.1.2 p.1.1) (fun p => p.1.1.height)
+      (fun h => 2 * t * h) := sorry
 
 end BPlusTree
 
