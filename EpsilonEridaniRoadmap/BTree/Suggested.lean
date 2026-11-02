@@ -273,6 +273,18 @@ example (t : ℕ) :
     ¬ IsWF t (BTree.node (α := ℕ) (β := Unit)
       (.node .leaf [(0, (), .leaf)]) [(1, (), .leaf)]) := sorry
 
+/-- A root with two keys and three leaf children is well-formed at `t = 3`. -/
+example : IsWF 3 (BTree.node (α := ℕ) (β := String) .leaf [(1, "a", .leaf), (2, "b", .leaf)]) :=
+  sorry
+
+/-- Occupancy depends on `t`: one-key children are full enough at `t = 2` and too sparse at
+`t = 3`, where a non-root node needs at least two keys. -/
+example :
+    IsWF 2 (BTree.node (α := ℕ) (β := Unit)
+      (.node .leaf [(0, (), .leaf)]) [(5, (), .node .leaf [(6, (), .leaf)])]) ∧
+    ¬ IsWF 3 (BTree.node (α := ℕ) (β := Unit)
+      (.node .leaf [(0, (), .leaf)]) [(5, (), .node .leaf [(6, (), .leaf)])]) := sorry
+
 end Structure
 
 /-! ## Milestone 3: search and order queries
@@ -322,8 +334,20 @@ def minM (visit : m Unit) : BTree α β → m (Option (α × β))
     | some p => pure (some p)
     | none => pure (rest.head?.map fun e => (e.1, e.2.1))
 
-/-- Greatest entry. -/
-def maxM (visit : m Unit) : BTree α β → m (Option (α × β)) := sorry
+/-- Greatest entry: walk along each node's triples, which is free, and descend into the last
+child. `visit` fires once per node, when the walk reaches the node's last triple. -/
+def maxM (visit : m Unit) : BTree α β → m (Option (α × β))
+  | .leaf => pure none
+  | .node first [] => do
+    visit
+    maxM visit first
+  | .node _ [(k, v, c)] => do
+    visit
+    match ← maxM visit c with
+    | some p => pure (some p)
+    | none => pure (some (k, v))
+  | .node _ ((_, _, c) :: e :: rest) => maxM visit (.node c (e :: rest))
+termination_by tr => sizeOf tr
 
 /-- Greatest entry with key strictly below `k`. -/
 def predM (le : α → α → m Bool) (visit : m Unit) (k : α) : BTree α β → m (Option (α × β)) :=
@@ -333,9 +357,34 @@ def predM (le : α → α → m Bool) (visit : m Unit) (k : α) : BTree α β �
 def succM (le : α → α → m Bool) (visit : m Unit) (k : α) : BTree α β → m (Option (α × β)) :=
   sorry
 
-/-- Entries with keys in the closed interval `[lo, hi]`, in key order. -/
-def rangeM (le : α → α → m Bool) (visit : m Unit) (lo hi : α) : BTree α β → m (List (α × β)) :=
-  sorry
+mutual
+/-- Entries with keys in the closed interval `[lo, hi]`, in key order. A node is visited once,
+on entry. A child is entered only when the key before it is at most `hi` and the key after it
+is at least `lo`, so on a well-formed tree every node entered lies on the search path of `lo`,
+lies on the search path of `hi`, or contributes an entry to the output. That is the shape of
+the `2 · height + k` visit bound of Milestone 6. -/
+def rangeM (le : α → α → m Bool) (visit : m Unit) (lo hi : α) :
+    BTree α β → m (List (α × β))
+  | .leaf => pure []
+  | .node first rest => do
+    visit
+    rangeRestM le visit lo hi first rest
+termination_by tr => sizeOf tr
+/-- The walk along a node's triples, free of visits. `first` is the child preceding the
+remaining triples; the key before it is already known to be at most `hi`. -/
+def rangeRestM (le : α → α → m Bool) (visit : m Unit) (lo hi : α) (first : BTree α β) :
+    List (α × β × BTree α β) → m (List (α × β))
+  | [] => rangeM le visit lo hi first
+  | (k, v, c) :: rest => do
+    let loLeK ← le lo k
+    let below ← if loLeK then rangeM le visit lo hi first else pure []
+    if ← le k hi then
+      let after ← rangeRestM le visit lo hi c rest
+      pure (below ++ (if loLeK then [(k, v)] else []) ++ after)
+    else
+      pure below
+termination_by rest => sizeOf first + sizeOf rest
+end
 
 /-- The rank of `k`: the number of keys strictly below it. -/
 def rankM (le : α → α → m Bool) (visit : m Unit) (k : α) : BTree α β → m ℕ := sorry
@@ -979,6 +1028,23 @@ theorem IsWF.height_le_log (h : IsWF t tr) : tr.height ≤ Nat.log t tr.size + 1
 theorem IsWF.pow_le_size (h : IsWF t tr) (h2 : 2 ≤ tr.height) :
     t ^ (tr.height - 1) ≤ tr.size := sorry
 
+/-- The separator convention: a separator equal to the least key of the child it introduces is
+intended. Under the rejected alternative, with separators bounding their child strictly from
+below, this tree would be malformed. -/
+example :
+    IsWF 2 (BPlusTree.node (α := ℕ) (β := String) (.leaf [(1, "a")]) [(2, .leaf [(2, "b")])]) :=
+  sorry
+
+/-- A separator above a key in the child it introduces violates the convention. -/
+example :
+    ¬ Separated (BPlusTree.node (α := ℕ) (β := String) (.leaf [(1, "a")]) [(3, .leaf [(2, "b")])]) :=
+  sorry
+
+/-- A separator need not occur as a key in any leaf. -/
+example :
+    IsWF 2 (BPlusTree.node (α := ℕ) (β := String) (.leaf [(1, "a")]) [(2, .leaf [(3, "c")])]) :=
+  sorry
+
 /-! ### Milestone 9: queries, pure -/
 
 /-- Lookup, pure. -/
@@ -1008,6 +1074,14 @@ def insert (t : ℕ) (k : α) (v : β) : BPlusTree α β → BPlusTree α β := 
 
 /-- Erase; separators stay valid without being present as keys. -/
 def erase (t : ℕ) (k : α) : BPlusTree α β → BPlusTree α β := sorry
+
+/-- Erasing a key that also serves as a separator removes the entry and leaves a well-formed
+tree; whether the separator is kept or replaced is the implementation's choice. -/
+example :
+    (erase 2 2 (BPlusTree.node (α := ℕ) (β := String)
+      (.leaf [(1, "a")]) [(2, .leaf [(2, "b"), (3, "c")])])).toList = [(1, "a"), (3, "c")] ∧
+    IsWF 2 (erase 2 2 (BPlusTree.node (α := ℕ) (β := String)
+      (.leaf [(1, "a")]) [(2, .leaf [(2, "b"), (3, "c")])])) := sorry
 
 /-- Bulk loading from a sorted list. -/
 def ofSortedList (t : ℕ) (l : List (α × β)) : BPlusTree α β := sorry

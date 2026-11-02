@@ -24,11 +24,12 @@ is an intended consumer of the abstract structure. This roadmap stays at the
 level of purely functional trees over an ordered key type. It does not model
 pages, bytes, or disks; see [Out of scope](#out-of-scope).
 
-**Suggested homes:** `EpsilonEridani/Algorithms/Lean/BTree/` for both trees,
-their operations, and their cost analyses, following the placement of
-CSLib's `TimeM`, `Query`, and sorting developments;
+**Proposed layout:** `EpsilonEridani/Algorithms/Lean/BTree/` for both trees,
+their operations, and their cost analyses, mirroring where CSLib keeps
+`TimeM`, `Query`, and its sorting developments;
 `EpsilonEridani/Foundations/Data/List/` for the sorted association list model
-of Milestone 1.
+of Milestone 1. Neither directory exists yet; the first contribution to each
+creates it.
 
 [`Suggested.lean`](Suggested.lean) provides suggested signatures, never an
 exhaustive checklist; this document is the specification.
@@ -73,10 +74,11 @@ missing structures and theory.
   concatenation lemmas on the entry list at every node far more than they
   need a map, and that is what the model provides. Use the Batteries names
   where they fit.
-- Lean core and Mathlib supply `List.Pairwise`, `List.SortedLT`,
-  `List.lookup`, `Nat.log`, `Nat.clog`, and the `LinearOrder` API. Use these
-  rather than private versions; key-sortedness is `Pairwise (· < ·)` on the
-  key list.
+- Lean core and Mathlib supply `List.Pairwise`, `List.lookup`, `Nat.log`,
+  `Nat.clog`, and the `LinearOrder` API. Use these rather than private
+  versions. Key-sortedness is `Pairwise (· < ·)` on the key list, which is
+  Mathlib's `List.SortedLT` by `List.sortedLT_iff_pairwise`; state it in the
+  `Pairwise` form, which is what the splitting lemmas consume.
 
 Published formalisations to consult for proof structure, not to port:
 Mündler's imperative B-trees and the Mündler–Nipkow B+-trees in Isabelle,
@@ -135,8 +137,10 @@ way this roadmap separates its trees from a page-addressed refinement.
   separators, a non-leaf root has between `1` and `2t - 1` separators, the
   empty tree is the empty leaf, all leaves are at the same depth, `toList`
   is key-sorted, and the separator convention holds at every interior node.
-- `height` counts levels: a leaf has height `1`. The height bound is
-  `height ≤ Nat.log t size + 1`.
+- `height` counts levels: a leaf has height `1`. In both trees `height` is
+  the number of nodes on a root-to-leaf path; the conventions differ only
+  because the classic leaf is the empty tree, while the B+-tree leaf is a
+  node holding entries. The height bound is `height ≤ Nat.log t size + 1`.
 - Leaf chaining is represented by `leaves`, the list of leaf entry lists in
   key order, with `toList = leaves.flatten`. There are no pointers.
 
@@ -280,8 +284,8 @@ key, the number of keys strictly below it. Prove:
    and concatenation lemmas for sorted lists split at a key, which the tree
    proofs use at every node.
 
-Name the model `SortedAssoc` or similar and keep it in the foundations
-directory; it is list theory, not tree theory.
+Name the model `SortedAssoc` and keep it in the foundations directory; it is
+list theory, not tree theory.
 
 #### M2. B-tree structure and height
 
