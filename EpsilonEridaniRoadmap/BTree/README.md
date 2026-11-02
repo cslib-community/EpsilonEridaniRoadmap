@@ -67,15 +67,12 @@ missing structures and theory.
   its internals. Core's [`Std.Internal.List.Associative`](https://github.com/leanprover/lean4/blob/master/src/Std/Data/Internal/List/Associative.lean)
   and Batteries'
   [`OrderedAssocList`](https://github.com/leanprover-community/batteries/blob/main/Batteries/Data/OrderedAssocList.lean)
-  are prior art for the list model's names and lemma shapes. The Batteries
-  list is ordered by a comparator, which `LinearOrder` supplies, and it
-  landed on Batteries `main` on 2026-10-25, after the revision this
-  roadmap's dependency chain currently pins. Milestone 1 nonetheless builds
-  its model as a plain `List (α × β)` with a sortedness predicate: the tree
-  proofs need splitting and concatenation lemmas on the entry list at every
-  node far more than they need a map container, and that is what the model
-  provides. Use the Batteries names where they fit, and bridge to its
-  structure if a consumer wants one.
+  are prior art for the list model's names and lemma shapes. Milestone 1
+  builds its model as a plain `List (α × β)` with a sortedness predicate
+  rather than as either container: the tree proofs need splitting and
+  concatenation lemmas on the entry list at every node far more than they
+  need a map, and that is what the model provides. Use the Batteries names
+  where they fit.
 - Lean core and Mathlib supply `List.Pairwise`, `List.SortedLT`,
   `List.lookup`, `Nat.log`, `Nat.clog`, and the `LinearOrder` API. Use these
   rather than private versions; key-sortedness is `Pairwise (· < ·)` on the
