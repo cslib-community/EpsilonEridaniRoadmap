@@ -15,17 +15,15 @@ review and approve the specifications.
 
 ## Roadmaps
 
-Proposals for new areas are welcome. Open a pull request with a concrete
-specification and enough context for someone else to understand why the
-development will be useful.
+There are no approved roadmap areas yet. Proposals for the first areas are welcome!
+Open a pull request with a concrete specification and enough context for someone
+else to understand why the development will be useful.
 
 Active areas belong under `EpsilonEridaniRoadmap/`, with one directory per area.
-Each area has a `README.md` describing its scope and milestones and a
-`metadata.toml` naming its primary arXiv subject class, as in `topic = "cs.DS"`.
-It may include a `Suggested.lean` file with proposed interfaces. The area's
-README is the specification; Lean prototypes help make it precise. Maintainers
-can move completed areas to `Completed/` after checking the implementation
-against that specification.
+Each area has a `README.md` describing its scope and milestones, and may include a
+`Suggested.lean` file with proposed interfaces. The area's README is the specification;
+Lean prototypes help make it precise. Maintainers can move completed areas to
+`Completed/` after checking the implementation against that specification.
 
 ## Writing a roadmap
 
