@@ -355,6 +355,19 @@ once through `IsMonadHom`. Prove the node-visit bounds of the
 output-sensitive bound for range restriction; `n` nodes for bulk loading;
 and the `Nat.log` corollaries through the height bound.
 
+Delivered in parts. M6 is complete when all five parts have landed in
+EpsilonEridani:
+
+1. Point queries: `lookup`, `contains`, `min?`, `max?`, `pred?`, `succ?`,
+   and `rank`, each at most `height` visits. PR: —
+2. Range restriction: at most `2 · height + k` visits for output length
+   `k`. PR: —
+3. Insertion: at most `height` visits. PR: —
+4. Erasure: `erase` at most `2 · height` visits, the bottom-up count of one
+   path node plus at most one repaired sibling per level; `eraseMin?` and
+   `eraseMax?` at most `3 · height`. PR: —
+5. Bulk loading: at most `n` nodes built from `n` entries. PR: —
+
 #### M7. Comparison bounds and the search lower bound
 
 Dependencies: M4, M5.

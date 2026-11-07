@@ -307,6 +307,9 @@ def predT (k : α) (tr : BTree α β) : TimeM ℕ (Option (α × β)) := predM l
 /-- Successor, node-visit instrumentation. -/
 def succT (k : α) (tr : BTree α β) : TimeM ℕ (Option (α × β)) := succM leT (tick 1) k tr
 
+/-- Rank, node-visit instrumentation. -/
+def rankT (k : α) (tr : BTree α β) : TimeM ℕ ℕ := rankM leT (tick 1) k tr
+
 /-- Range restriction, node-visit instrumentation. -/
 def rangeT (lo hi : α) (tr : BTree α β) : TimeM ℕ (List (α × β)) :=
   rangeM leT (tick 1) lo hi tr
@@ -319,6 +322,12 @@ def insertT (t : ℕ) (k : α) (v : β) (tr : BTree α β) : TimeM ℕ (BTree α
 def eraseT (t : ℕ) (k : α) (tr : BTree α β) : TimeM ℕ (BTree α β) :=
   eraseM t leT (tick 1) k tr
 
+/-- Removal of the least entry, node-visit instrumentation. -/
+def eraseMinT (t : ℕ) (tr : BTree α β) : TimeM ℕ (Option ((α × β) × BTree α β)) := sorry
+
+/-- Removal of the greatest entry, node-visit instrumentation. -/
+def eraseMaxT (t : ℕ) (tr : BTree α β) : TimeM ℕ (Option ((α × β) × BTree α β)) := sorry
+
 /-- Bulk loading charging one tick per node built. -/
 def ofSortedListT (t : ℕ) (l : List (α × β)) : TimeM ℕ (BTree α β) := sorry
 
@@ -326,39 +335,54 @@ def ofSortedListT (t : ℕ) (l : List (α × β)) : TimeM ℕ (BTree α β) := s
 
 theorem ret_lookupT (k : α) : ⟪lookupT k tr⟫ = lookup k tr := sorry
 
+theorem ret_rankT (k : α) : ⟪rankT k tr⟫ = rank k tr := sorry
+
 theorem ret_rangeT (lo hi : α) : ⟪rangeT lo hi tr⟫ = range lo hi tr := sorry
 
 theorem ret_insertT (k : α) (v : β) : ⟪insertT t k v tr⟫ = insert t k v tr := sorry
 
 theorem ret_eraseT (k : α) : ⟪eraseT t k tr⟫ = erase t k tr := sorry
 
+theorem ret_eraseMinT : ⟪eraseMinT t tr⟫ = eraseMin? t tr := sorry
+
+theorem ret_eraseMaxT : ⟪eraseMaxT t tr⟫ = eraseMax? t tr := sorry
+
 theorem ret_ofSortedListT (l : List (α × β)) : ⟪ofSortedListT t l⟫ = ofSortedList t l := sorry
 
 /-! ### Node-visit bounds -/
 
-theorem time_lookupT (h : IsWF t tr) (k : α) : (lookupT k tr).time ≤ tr.height := sorry
+theorem time_lookupT (k : α) : (lookupT k tr).time ≤ tr.height := sorry
 
 theorem time_lookupT_le_log (h : IsWF t tr) (k : α) :
     (lookupT k tr).time ≤ Nat.log t ((tr.size + 1) / 2) + 1 := sorry
 
-theorem time_minT (h : IsWF t tr) : (minT tr).time ≤ tr.height := sorry
+theorem time_minT : (minT tr).time ≤ tr.height := sorry
 
-theorem time_maxT (h : IsWF t tr) : (maxT tr).time ≤ tr.height := sorry
+theorem time_maxT : (maxT tr).time ≤ tr.height := sorry
 
-theorem time_predT (h : IsWF t tr) (k : α) : (predT k tr).time ≤ tr.height := sorry
+theorem time_predT (k : α) : (predT k tr).time ≤ tr.height := sorry
 
-theorem time_succT (h : IsWF t tr) (k : α) : (succT k tr).time ≤ tr.height := sorry
+theorem time_succT (k : α) : (succT k tr).time ≤ tr.height := sorry
+
+theorem time_rankT (k : α) : (rankT k tr).time ≤ tr.height := sorry
 
 /-- Two boundary paths plus at most one node per output entry. -/
 theorem time_rangeT (h : IsWF t tr) (lo hi : α) :
     (rangeT lo hi tr).time ≤ 2 * tr.height + (range lo hi tr).length := sorry
 
-theorem time_insertT (h : IsWF t tr) (k : α) (v : β) : (insertT t k v tr).time ≤ tr.height :=
-  sorry
+theorem time_insertT (k : α) (v : β) : (insertT t k v tr).time ≤ tr.height := sorry
 
-/-- Erasure inspects at most one child and two siblings per level under the top-down algorithm
-of Cormen et al.; a different algorithm states its own constant. -/
-theorem time_eraseT (h : IsWF t tr) (k : α) : (eraseT t k tr).time ≤ 3 * tr.height := sorry
+/-- Bottom-up erasure visits, per level, the node on the search path (or, below the key's node,
+on the path to the successor) and, when the child underflows, at most one sibling inspected by
+the repair; the root has no sibling. The top-down algorithm of Cormen et al. inspects at most
+one child and two siblings per level and states `3 * tr.height` instead. -/
+theorem time_eraseT (k : α) : (eraseT t k tr).time ≤ 2 * tr.height := sorry
+
+/-- A pass to the least entry, then erasure of its key. -/
+theorem time_eraseMinT : (eraseMinT t tr).time ≤ 3 * tr.height := sorry
+
+/-- A pass to the greatest entry, then erasure of its key. -/
+theorem time_eraseMaxT : (eraseMaxT t tr).time ≤ 3 * tr.height := sorry
 
 theorem time_ofSortedListT (l : List (α × β)) : (ofSortedListT t l).time ≤ l.length := sorry
 
