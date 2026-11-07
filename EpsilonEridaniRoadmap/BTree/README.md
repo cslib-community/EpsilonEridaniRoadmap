@@ -391,6 +391,32 @@ programs on a bulk-loaded tree satisfy the predicates, and record the
 explicit upper bounds in `n` for both in-node searches through the height
 bound, as the [cost model](#cost-model) states them.
 
+Delivered in parts. M7 is complete when all six parts have landed in
+EpsilonEridani:
+
+1. Point queries: `lookup`, `contains`, `min?`, `max?`, `pred?`, `succ?`,
+   and `rank` at `FreeM (LEQuery α)`, with their `eval` transfer lemmas,
+   the linear in-node search bound of one comparison per key, and
+   `UpperBound` statements of `2t · height` over all oracles; `min?` and
+   `max?` make no comparisons.
+2. Range restriction: its transfer lemma and at most
+   `2t · (2 · height + k)` comparisons for output length `k`, under the
+   oracle of the real order only.
+3. Insertion and erasure: transfer lemmas and `UpperBound` statements of
+   `2t · height` for insertion, `2t · (2 · height)` for `erase`, and
+   `2t · (3 · height)` for `eraseMin?` and `eraseMax?`, the node-visit
+   bounds of M6 times the per-node bound.
+4. Binary in-node search: its comparison bound for every list, its
+   agreement with linear search on sorted keys, and lookup and rank with
+   binary in-node search, with their transfer lemmas and `UpperBound`
+   statements of `(⌈log₂(2t)⌉ + 1) · height`.
+5. Lower bounds: the correctness predicates for comparison-based rank and
+   lookup programs and the `⌈log₂(n + 1)⌉` lower bound for each on an
+   infinite key type.
+6. Meeting the bound: the B-tree rank and lookup programs on a bulk-loaded
+   tree satisfy the predicates, and the explicit upper bounds in `n` for
+   both in-node searches.
+
 #### M8. Read-only operations behind a node-access oracle
 
 Dependencies: M3, M6.

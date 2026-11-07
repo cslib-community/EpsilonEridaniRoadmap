@@ -446,18 +446,18 @@ theorem countQueries_slotM_le (oracle : {ι : Type} → LEQuery α ι → ι) (k
     (slotM LEQuery.ask k rest).countQueries oracle ≤ rest.length := sorry
 
 /-- At most `2t` comparisons at each of at most `height` nodes, over every oracle. -/
-theorem lookupQ_upperBound (ht : 2 ≤ t) :
+theorem lookupQ_upperBound :
     UpperBound (fun p : WFInput α β t => lookupQ p.1.2 p.1.1) (fun p => p.1.1.height)
       (fun h => 2 * t * h) := sorry
 
-theorem insertQ_upperBound (ht : 2 ≤ t) (v : β) :
+theorem insertQ_upperBound (v : β) :
     UpperBound (fun p : WFInput α β t => insertQ t p.1.2 v p.1.1) (fun p => p.1.1.height)
       (fun h => 2 * t * h) := sorry
 
 /-- The node-visit constant of erasure times the per-node comparison bound. -/
-theorem eraseQ_upperBound (ht : 2 ≤ t) :
+theorem eraseQ_upperBound :
     UpperBound (fun p : WFInput α β t => eraseQ t p.1.2 p.1.1) (fun p => p.1.1.height)
-      (fun h => 2 * t * (3 * h)) := sorry
+      (fun h => 2 * t * (2 * h)) := sorry
 
 /-- Range restriction is output-sensitive, and the output under an arbitrary oracle is not the
 output under `≤`, so this bound is stated at the order's oracle only. -/
@@ -524,11 +524,11 @@ theorem eval_lookupBinQ (h : IsWF t tr) (k : α) :
     (lookupBinQ k tr).eval orderOracle = lookup k tr := sorry
 
 /-- At most `⌈log₂ (2t)⌉ + 1` comparisons at each node. -/
-theorem lookupBinQ_upperBound (ht : 2 ≤ t) :
+theorem lookupBinQ_upperBound :
     UpperBound (fun p : WFInput α β t => lookupBinQ p.1.2 p.1.1) (fun p => p.1.1.height)
       (fun h => (Nat.clog 2 (2 * t) + 1) * h) := sorry
 
-theorem rankBinQ_upperBound (ht : 2 ≤ t) :
+theorem rankBinQ_upperBound :
     UpperBound (fun p : WFInput α β t => rankBinQ p.1.2 p.1.1) (fun p => p.1.1.height)
       (fun h => (Nat.clog 2 (2 * t) + 1) * h) := sorry
 
