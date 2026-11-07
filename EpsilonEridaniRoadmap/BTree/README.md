@@ -359,7 +359,8 @@ Delivered in parts. M6 is complete when all five parts have landed in
 EpsilonEridani:
 
 1. Point queries: `lookup`, `contains`, `min?`, `max?`, `pred?`, `succ?`,
-   and `rank`, each at most `height` visits. PR: —
+   and `rank`, each at most `height` visits. PR:
+   [EpsilonEridani#34](https://github.com/cslib-community/EpsilonEridani/pull/34)
 2. Range restriction: at most `2 · height + k` visits for output length
    `k`. PR: —
 3. Insertion: at most `height` visits. PR: —
