@@ -1,6 +1,6 @@
 module
 
-public import Mathlib.Data.List.Sort
+public import EpsilonEridani.Algorithms.Lean.BTree.Lookup
 public import Mathlib.Data.Nat.Log
 public import Std.Data.TreeMap
 public import Cslib.Algorithms.Lean.TimeM
@@ -52,278 +52,24 @@ universe u v w
 
 /-! ## Milestone 1: sorted association lists -/
 
-namespace SortedAssoc
-
-variable {α : Type u} {β : Type v} [LinearOrder α]
-
-/-- Keys strictly increasing, hence distinct. -/
-def IsSortedAssoc (l : List (α × β)) : Prop :=
-  (l.map Prod.fst).Pairwise (· < ·)
-
-/-- Lookup is `List.lookup`; the model does not introduce a second lookup. -/
-abbrev lookup (k : α) (l : List (α × β)) : Option β :=
-  List.lookup k l
-
-/-- Insert-or-replace at the sorted position. -/
-def insert (k : α) (v : β) : List (α × β) → List (α × β)
-  | [] => [(k, v)]
-  | (k', v') :: rest =>
-    if k < k' then (k, v) :: (k', v') :: rest
-    else if k = k' then (k, v) :: rest
-    else (k', v') :: insert k v rest
-
-/-- Remove the entry with key `k`, if any. -/
-def erase (k : α) (l : List (α × β)) : List (α × β) :=
-  l.filter fun p => p.1 ≠ k
-
-/-- The entry with least key. -/
-abbrev min? (l : List (α × β)) : Option (α × β) := l.head?
-
-/-- The entry with greatest key. -/
-abbrev max? (l : List (α × β)) : Option (α × β) := l.getLast?
-
-/-- The greatest entry with key strictly below `k`. -/
-def pred? (k : α) (l : List (α × β)) : Option (α × β) :=
-  (l.filter fun p => p.1 < k).getLast?
-
-/-- The least entry with key strictly above `k`. -/
-def succ? (k : α) (l : List (α × β)) : Option (α × β) :=
-  (l.filter fun p => k < p.1).head?
-
-/-- Restriction to the closed key interval `[lo, hi]`. -/
-def range (lo hi : α) (l : List (α × β)) : List (α × β) :=
-  l.filter fun p => lo ≤ p.1 ∧ p.1 ≤ hi
-
-/-- The rank of `k`: the number of keys strictly below it. -/
-def rank (k : α) (l : List (α × β)) : ℕ :=
-  (l.filter fun p => p.1 < k).length
-
-variable {l : List (α × β)} {k k' : α} {v : β}
-
-theorem isSortedAssoc_insert (h : IsSortedAssoc l) : IsSortedAssoc (insert k v l) := sorry
-
-theorem isSortedAssoc_erase (h : IsSortedAssoc l) : IsSortedAssoc (erase k l) := sorry
-
-theorem lookup_insert_self (h : IsSortedAssoc l) : lookup k (insert k v l) = some v := sorry
-
-theorem lookup_insert_of_ne (h : IsSortedAssoc l) (hne : k' ≠ k) :
-    lookup k' (insert k v l) = lookup k' l := sorry
-
-theorem lookup_erase_self : lookup k (erase k l) = none := sorry
-
-theorem lookup_erase_of_ne (hne : k' ≠ k) : lookup k' (erase k l) = lookup k' l := sorry
-
-theorem erase_of_lookup_eq_none (h : lookup k l = none) : erase k l = l := sorry
-
-theorem lookup_eq_some_iff (h : IsSortedAssoc l) : lookup k l = some v ↔ (k, v) ∈ l := sorry
-
-theorem length_insert (h : IsSortedAssoc l) :
-    (insert k v l).length = if (lookup k l).isSome then l.length else l.length + 1 := sorry
-
-theorem length_erase (h : IsSortedAssoc l) :
-    (erase k l).length = if (lookup k l).isSome then l.length - 1 else l.length := sorry
-
-theorem mem_range_iff {lo hi : α} {p : α × β} :
-    p ∈ range lo hi l ↔ p ∈ l ∧ lo ≤ p.1 ∧ p.1 ≤ hi := sorry
-
-theorem pred?_eq_some_iff (h : IsSortedAssoc l) {p : α × β} :
-    pred? k l = some p ↔ p ∈ l ∧ p.1 < k ∧ ∀ q ∈ l, q.1 < k → q.1 ≤ p.1 := sorry
-
-theorem succ?_eq_some_iff (h : IsSortedAssoc l) {p : α × β} :
-    succ? k l = some p ↔ p ∈ l ∧ k < p.1 ∧ ∀ q ∈ l, k < q.1 → p.1 ≤ q.1 := sorry
-
-/-- On a sorted list, the rank is the length of the prefix of keys below `k`. -/
-theorem rank_eq_length_takeWhile (h : IsSortedAssoc l) :
-    rank k l = (l.takeWhile fun p => decide (p.1 < k)).length := sorry
-
-/-- Splitting a sorted list at a key: the shape of the lemma used at every tree node. -/
-theorem isSortedAssoc_append_cons_iff {l₁ l₂ : List (α × β)} :
-    IsSortedAssoc (l₁ ++ (k, v) :: l₂) ↔
-      IsSortedAssoc l₁ ∧ IsSortedAssoc l₂ ∧ (∀ p ∈ l₁, p.1 < k) ∧ ∀ p ∈ l₂, k < p.1 := sorry
-
-end SortedAssoc
+/-! Implemented in the library, in `EpsilonEridani.Foundations.Data.List.SortedAssoc`. -/
 
 /-! ## Milestone 2: B-tree structure and height -/
 
-/-- A classic B-tree. A node is a first child followed by `(key, value, child)` triples, so a
-node with `m` keys has `m + 1` children by construction. `leaf` is the empty tree. -/
-inductive BTree (α : Type u) (β : Type v) : Type (max u v) where
-  | leaf : BTree α β
-  | node (first : BTree α β) (rest : List (α × β × BTree α β)) : BTree α β
+/-! Implemented in the library, in `EpsilonEridani.Algorithms.Lean.BTree.Basic` and `.Height`. -/
 
 namespace BTree
-
-section Structure
-
-variable {α : Type u} {β : Type v} {γ : Type w}
-
-mutual
-/-- Entries in key order. -/
-def toList : BTree α β → List (α × β)
-  | leaf => []
-  | node first rest => first.toList ++ toListRest rest
-/-- Entries of the triples following a first child. -/
-def toListRest : List (α × β × BTree α β) → List (α × β)
-  | [] => []
-  | (k, v, c) :: rest => (k, v) :: c.toList ++ toListRest rest
-end
-
-mutual
-/-- Nodes on a root-to-leaf path: the leaf has height `0`. -/
-def height : BTree α β → ℕ
-  | leaf => 0
-  | node first rest => max (first.height + 1) (heightRest rest)
-/-- Height contribution of the children in a list of triples. -/
-def heightRest : List (α × β × BTree α β) → ℕ
-  | [] => 0
-  | (_, _, c) :: rest => max (c.height + 1) (heightRest rest)
-end
-
-mutual
-/-- Map over values. -/
-def map (f : β → γ) : BTree α β → BTree α γ
-  | leaf => leaf
-  | node first rest => node (first.map f) (mapRest f rest)
-/-- Map over the values of a list of triples. -/
-def mapRest (f : β → γ) : List (α × β × BTree α β) → List (α × γ × BTree α γ)
-  | [] => []
-  | (k, v, c) :: rest => (k, f v, c.map f) :: mapRest f rest
-end
-
-/-- Number of entries. -/
-def size (tr : BTree α β) : ℕ := tr.toList.length
-
-/-- Keys in order. -/
-def keys (tr : BTree α β) : List α := tr.toList.map Prod.fst
-
-/-- Fold over entries in key order; the specification of any direct recursive fold. -/
-def foldl (f : γ → α × β → γ) (init : γ) (tr : BTree α β) : γ := tr.toList.foldl f init
-
-instance : Membership (α × β) (BTree α β) := ⟨fun tr p => p ∈ tr.toList⟩
-
-/-- Keys at the root node. -/
-def rootKeys : BTree α β → ℕ
-  | leaf => 0
-  | node _ rest => rest.length
-
-/-- Children of the root node. -/
-def children : BTree α β → List (BTree α β)
-  | leaf => []
-  | node first rest => first :: rest.map (·.2.2)
-
-/-- Every node satisfies the occupancy bounds of a non-root node of minimum degree `t`. -/
-inductive Occupied (t : ℕ) : BTree α β → Prop
-  | leaf : Occupied t .leaf
-  | node {first : BTree α β} {rest : List (α × β × BTree α β)} :
-      t - 1 ≤ rest.length → rest.length ≤ 2 * t - 1 →
-      Occupied t first → (∀ e ∈ rest, Occupied t e.2.2) → Occupied t (.node first rest)
-
-/-- All leaves at the same depth: every child of a node has the height of the first child. -/
-inductive Balanced : BTree α β → Prop
-  | leaf : Balanced .leaf
-  | node {first : BTree α β} {rest : List (α × β × BTree α β)} :
-      Balanced first → (∀ e ∈ rest, Balanced e.2.2) →
-      (∀ e ∈ rest, e.2.2.height = first.height) → Balanced (.node first rest)
-
-/-- Well-formed B-tree of minimum degree `t`: root occupancy, non-root occupancy, equal leaf
-depth, and key-sortedness of `toList`. -/
-structure IsWF [LinearOrder α] (t : ℕ) (tr : BTree α β) : Prop where
-  two_le : 2 ≤ t
-  rootKeys_le : tr.rootKeys ≤ 2 * t - 1
-  rootKeys_pos : tr ≠ .leaf → 1 ≤ tr.rootKeys
-  children : ∀ c ∈ tr.children, Occupied t c
-  balanced : Balanced tr
-  sorted : SortedAssoc.IsSortedAssoc tr.toList
-
-variable {tr : BTree α β}
-
-theorem mem_iff {p : α × β} : p ∈ tr ↔ p ∈ tr.toList := Iff.rfl
-
-theorem toList_map (f : β → γ) : (tr.map f).toList = tr.toList.map fun p => (p.1, f p.2) := sorry
-
-theorem height_map (f : β → γ) : (tr.map f).height = tr.height := sorry
-
-theorem height_eq_zero_iff : tr.height = 0 ↔ tr = .leaf := sorry
-
-variable [LinearOrder α] {t : ℕ}
-
-/-- Every subtree of a well-formed tree is occupied. -/
-theorem IsWF.occupied_of_mem_children (h : IsWF t tr) {c : BTree α β} (hc : c ∈ tr.children) :
-    Occupied t c := h.children c hc
-
-/-- Children of a well-formed tree have height one less than the tree. -/
-theorem IsWF.height_of_mem_children (h : IsWF t tr) {c : BTree α β} (hc : c ∈ tr.children) :
-    c.height + 1 = tr.height := sorry
-
-/-- The classic height bound: `h ≤ log_t ((n + 1) / 2)` with `h = height - 1` for non-empty
-trees, written with `Nat.log` and the height convention above. -/
-theorem IsWF.height_le_log (h : IsWF t tr) :
-    tr.height ≤ Nat.log t ((tr.size + 1) / 2) + 1 := sorry
-
-theorem IsWF.le_size (h : IsWF t tr) (hne : tr ≠ .leaf) :
-    2 * t ^ (tr.height - 1) - 1 ≤ tr.size := sorry
-
-theorem IsWF.size_le (h : IsWF t tr) : tr.size ≤ (2 * t) ^ tr.height - 1 := sorry
-
-/-- A root with one key and two leaf children is a well-formed 2-3-4 tree. -/
-example : IsWF 2 (BTree.node (α := ℕ) (β := String) .leaf [(1, "a", .leaf)]) := sorry
-
-/-- A node whose children differ in height is not well-formed for any `t`. -/
-example (t : ℕ) :
-    ¬ IsWF t (BTree.node (α := ℕ) (β := Unit)
-      (.node .leaf [(0, (), .leaf)]) [(1, (), .leaf)]) := sorry
-
-/-- A root with two keys and three leaf children is well-formed at `t = 3`. -/
-example : IsWF 3 (BTree.node (α := ℕ) (β := String) .leaf [(1, "a", .leaf), (2, "b", .leaf)]) :=
-  sorry
-
-/-- Occupancy depends on `t`: one-key children are full enough at `t = 2` and too sparse at
-`t = 3`, where a non-root node needs at least two keys. -/
-example :
-    IsWF 2 (BTree.node (α := ℕ) (β := Unit)
-      (.node .leaf [(0, (), .leaf)]) [(5, (), .node .leaf [(6, (), .leaf)])]) ∧
-    ¬ IsWF 3 (BTree.node (α := ℕ) (β := Unit)
-      (.node .leaf [(0, (), .leaf)]) [(5, (), .node .leaf [(6, (), .leaf)])]) := sorry
-
-end Structure
 
 /-! ## Milestone 3: search and order queries
 
 Operations are defined once over an arbitrary monad with a comparator `le` and a visit action,
 with no order instance in scope. The pure operation is the `Id` instantiation. -/
 
+/-! Search is implemented in the library, in `EpsilonEridani.Algorithms.Lean.BTree.Lookup`. -/
+
 section QueriesPolymorphic
 
 variable {α β : Type} {m : Type → Type w} [Monad m]
-
-/-- Within-node linear search: the position of the first key not below `k`. At most one
-comparison per key. -/
-def slotM (le : α → α → m Bool) (k : α) : List (α × β × BTree α β) → m ℕ
-  | [] => pure 0
-  | (k', _, _) :: rest => do
-    if ← le k k' then pure 0 else return (← slotM le k rest) + 1
-
-/-- Lookup. Walking along a node's triples is free; `visit` fires when the search commits to a
-child or stops at a key, so each node is visited once. Equality is two `le` queries. -/
-def lookupM (le : α → α → m Bool) (visit : m Unit) (k : α) : BTree α β → m (Option β)
-  | .leaf => pure none
-  | .node first [] => do
-    visit
-    lookupM le visit k first
-  | .node first ((k', v, c) :: rest) => do
-    if ← le k k' then
-      visit
-      if ← le k' k then
-        pure (some v)
-      else
-        lookupM le visit k first
-    else
-      lookupM le visit k (.node c rest)
-termination_by tr => sizeOf tr
-
-/-- Membership test. -/
-def containsM (le : α → α → m Bool) (visit : m Unit) (k : α) (tr : BTree α β) : m Bool := do
-  return (← lookupM le visit k tr).isSome
 
 /-- Least entry: follow first children. -/
 def minM (visit : m Unit) : BTree α β → m (Option (α × β))
@@ -395,18 +141,6 @@ section QueriesPure
 
 variable {α β : Type} [LinearOrder α] {t : ℕ} {tr : BTree α β}
 
-/-- The decidable comparator of the order, in `Id`. -/
-abbrev leI (a b : α) : Id Bool := pure (decide (a ≤ b))
-
-/-- Within-node linear search, pure. -/
-def slot (k : α) (rest : List (α × β × BTree α β)) : ℕ := Id.run (slotM leI k rest)
-
-/-- Lookup, pure: the `Id` instantiation, as in CSLib's `idRun_mergeSortM`. -/
-def lookup (k : α) (tr : BTree α β) : Option β := Id.run (lookupM leI (pure ()) k tr)
-
-/-- Membership test, pure. -/
-def contains (k : α) (tr : BTree α β) : Bool := Id.run (containsM leI (pure ()) k tr)
-
 /-- Least entry, pure. -/
 def min? (tr : BTree α β) : Option (α × β) := Id.run (minM (pure ()) tr)
 
@@ -427,17 +161,9 @@ def rank (k : α) (tr : BTree α β) : ℕ := Id.run (rankM leI (pure ()) k tr)
 
 /-! ### Model equations -/
 
-theorem slot_eq_length_takeWhile (k : α) (rest : List (α × β × BTree α β)) :
-    slot k rest = (rest.takeWhile fun e => decide (e.1 < k)).length := sorry
+theorem min?_eq (h : IsWF t tr) : min? tr = tr.toList.head? := sorry
 
-theorem lookup_eq (h : IsWF t tr) (k : α) : lookup k tr = SortedAssoc.lookup k tr.toList := sorry
-
-theorem contains_eq (h : IsWF t tr) (k : α) :
-    contains k tr = (SortedAssoc.lookup k tr.toList).isSome := sorry
-
-theorem min?_eq (h : IsWF t tr) : min? tr = SortedAssoc.min? tr.toList := sorry
-
-theorem max?_eq (h : IsWF t tr) : max? tr = SortedAssoc.max? tr.toList := sorry
+theorem max?_eq (h : IsWF t tr) : max? tr = tr.toList.getLast? := sorry
 
 theorem pred?_eq (h : IsWF t tr) (k : α) : pred? k tr = SortedAssoc.pred? k tr.toList := sorry
 
@@ -532,19 +258,19 @@ variable {α β : Type} [LinearOrder α] {t : ℕ}
 /-- Build a well-formed tree from a sorted list in one pass. -/
 def ofSortedList (t : ℕ) (l : List (α × β)) : BTree α β := sorry
 
-theorem toList_ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
+theorem toList_ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : l.IsSortedAssoc) :
     (ofSortedList t l).toList = l := sorry
 
-theorem IsWF.ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
+theorem IsWF.ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : l.IsSortedAssoc) :
     IsWF t (ofSortedList t l) := sorry
 
 theorem height_ofSortedList_le (ht : 2 ≤ t) {l : List (α × β)}
-    (h : SortedAssoc.IsSortedAssoc l) :
+    (h : l.IsSortedAssoc) :
     (ofSortedList t l).height ≤ Nat.log t ((l.length + 1) / 2) + 1 := sorry
 
 /-- Output equality with Lean core's tree map; nothing about its internals is used. -/
 theorem toList_ofSortedList_eq_treeMap (ht : 2 ≤ t) {l : List (α × β)}
-    (h : SortedAssoc.IsSortedAssoc l) :
+    (h : l.IsSortedAssoc) :
     (ofSortedList t l).toList = (Std.TreeMap.ofList l compare).toList := sorry
 
 end Bulk
@@ -1017,7 +743,7 @@ structure IsWF [LinearOrder α] (t : ℕ) (tr : BPlusTree α β) : Prop where
         Occupied t first ∧ ∀ e ∈ rest, Occupied t e.2
   balanced : Balanced tr
   separated : Separated tr
-  sorted : SortedAssoc.IsSortedAssoc tr.toList
+  sorted : tr.toList.IsSortedAssoc
 
 section Headline
 
@@ -1053,7 +779,7 @@ def lookup (k : α) : BPlusTree α β → Option β := sorry
 /-- Range restriction, pure. -/
 def range (lo hi : α) : BPlusTree α β → List (α × β) := sorry
 
-theorem lookup_eq (h : IsWF t tr) (k : α) : lookup k tr = SortedAssoc.lookup k tr.toList := sorry
+theorem lookup_eq (h : IsWF t tr) (k : α) : lookup k tr = List.lookup k tr.toList := sorry
 
 theorem range_eq (h : IsWF t tr) (lo hi : α) :
     range lo hi tr = SortedAssoc.range lo hi tr.toList := sorry
@@ -1096,15 +822,15 @@ theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := sorry
 theorem toList_erase (h : IsWF t tr) (k : α) :
     (erase t k tr).toList = SortedAssoc.erase k tr.toList := sorry
 
-theorem toList_ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
+theorem toList_ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : l.IsSortedAssoc) :
     (ofSortedList t l).toList = l := sorry
 
-theorem IsWF.ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
+theorem IsWF.ofSortedList (ht : 2 ≤ t) {l : List (α × β)} (h : l.IsSortedAssoc) :
     IsWF t (ofSortedList t l) := sorry
 
 /-- A B+-tree and a classic B-tree built from the same sorted list have the same entries. -/
 theorem toList_ofSortedList_eq_btree {α β : Type} [LinearOrder α] (ht : 2 ≤ t)
-    {l : List (α × β)} (h : SortedAssoc.IsSortedAssoc l) :
+    {l : List (α × β)} (h : l.IsSortedAssoc) :
     (ofSortedList t l).toList = (BTree.ofSortedList t l).toList := sorry
 
 /-! ### Milestone 11: costs -/
