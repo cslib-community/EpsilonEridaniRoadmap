@@ -362,7 +362,8 @@ EpsilonEridani:
    and `rank`, each at most `height` visits. PR:
    [EpsilonEridani#34](https://github.com/cslib-community/EpsilonEridani/pull/34)
 2. Range restriction: at most `2 · height + k` visits for output length
-   `k`. PR: —
+   `k`. PR:
+   [EpsilonEridani#35](https://github.com/cslib-community/EpsilonEridani/pull/35)
 3. Insertion: at most `height` visits. PR: —
 4. Erasure: `erase` at most `2 · height` visits, the bottom-up count of one
    path node plus at most one repaired sibling per level; `eraseMin?` and
